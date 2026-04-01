@@ -30,3 +30,9 @@ add_executable(verify_avb
 target_compile_definitions(verify_avb PRIVATE AVB_COMPILATION)
 target_include_directories(verify_avb PRIVATE ${CMAKE_SOURCE_DIR} ${LIBAVB_DIR}/crypto)
 target_compile_options(verify_avb PRIVATE -Wall -Wextra)
+
+enable_testing()
+add_test(NAME integration COMMAND ${CMAKE_SOURCE_DIR}/verify_avb_test.sh
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(integration PROPERTIES
+    ENVIRONMENT "VERIFY_AVB=$<TARGET_FILE:verify_avb>")
