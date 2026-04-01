@@ -26,12 +26,27 @@
 #include <string.h>
 #include <stdint.h>
 
-#ifndef AVB_COMPILATION
-#define AVB_COMPILATION
-#endif
-#include "avb/libavb/libavb.h"
+#include <libavb/libavb.h>
+
+#define FAIL(...) do { fprintf(stderr, __VA_ARGS__); ret = 1; goto out; } while (0)
+
+/* Hashtree params */
+typedef struct {
+  bool found;
+  AvbHashtreeDescriptor ht;
+  const uint8_t *partition_name;
+  const uint8_t *salt;
+  const uint8_t *root_digest;
+} HashtreeInfo;
+
+static void print_hex(const uint8_t *data, size_t len) {
+
+  for (size_t i = 0; i < len; i++)
+    printf("%02x", data[i]);
+}
 
 static uint8_t *read_file_all(const char *path, size_t *out_size) {
+
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     fprintf(stderr, "Error: cannot open '%s': %s\n", path, strerror(errno));
@@ -51,12 +66,8 @@ static uint8_t *read_file_all(const char *path, size_t *out_size) {
   return buf;
 }
 
-static void print_hex(const uint8_t *data, size_t len) {
-  for (size_t i = 0; i < len; i++)
-    printf("%02x", data[i]);
-}
-
 static const char *algorithm_name(uint32_t type) {
+
   switch (type) {
     case AVB_ALGORITHM_TYPE_SHA256_RSA2048: return "SHA256_RSA2048";
     case AVB_ALGORITHM_TYPE_SHA256_RSA4096: return "SHA256_RSA4096";
@@ -70,17 +81,9 @@ static const char *algorithm_name(uint32_t type) {
   }
 }
 
-/* Hashtree params extracted from the descriptor. */
-typedef struct {
-  bool found;
-  AvbHashtreeDescriptor ht;
-  const uint8_t *partition_name;
-  const uint8_t *salt;
-  const uint8_t *root_digest;
-} HashtreeInfo;
-
 /* Descriptor callback — find the first hashtree descriptor. */
 static bool find_hashtree(const AvbDescriptor *desc, void *user_data) {
+
   HashtreeInfo *info = (HashtreeInfo *)user_data;
   AvbDescriptor header;
   if (!avb_descriptor_validate_and_byteswap(desc, &header))
@@ -98,11 +101,15 @@ static bool find_hashtree(const AvbDescriptor *desc, void *user_data) {
   return false;
 }
 
-#define FAIL(...) do { fprintf(stderr, __VA_ARGS__); ret = 1; goto out; } while (0)
-
 int main(int argc, char *argv[]) {
+
   bool dm_table_only = false;
   int argi = 1;
+
+  int ret = 0;
+  uint8_t *trusted_key = NULL;
+  uint8_t *vbmeta = NULL;
+  FILE *fp = NULL;
 
   if (argi < argc && strcmp(argv[argi], "--dm-table") == 0) {
     dm_table_only = true;
@@ -116,8 +123,8 @@ int main(int argc, char *argv[]) {
       "If [device] is given, it replaces the image path in the dm table.\n"
       "With --dm-table, prints only the raw dm table line for piping.\n\n"
       "Examples:\n"
-      "  avb_verify system.img pubkey.bin /dev/mmcblk0p2\n"
-      "  avb_verify --dm-table system.img pubkey.bin /dev/sda1 | dmsetup create verity-system\n");
+      "  avb_verify /dev/mmcblk0p2 pubkey.bin\n"
+      "  avb_verify --dm-table /dev/mmcblk0p2 pubkey.bin | dmsetup create verity-system\n");
     return 1;
   }
 
@@ -125,17 +132,12 @@ int main(int argc, char *argv[]) {
   const char *pubkey_path = argv[argi + 1];
   const char *device_path = (argc - argi == 3) ? argv[argi + 2] : image_path;
 
-  int ret = 0;
-  uint8_t *trusted_key = NULL;
-  uint8_t *vbmeta = NULL;
-  FILE *fp = NULL;
-
-  /* Load trusted public key. */
+  /* Load trusted public key */
   size_t trusted_key_size;
   trusted_key = read_file_all(pubkey_path, &trusted_key_size);
   if (!trusted_key) return 1;
 
-  /* Open image and read footer. */
+  /* Open image and read footer */
   fp = fopen(image_path, "rb");
   if (!fp)
     FAIL("Error: cannot open '%s': %s\n", image_path, strerror(errno));
@@ -152,7 +154,7 @@ int main(int argc, char *argv[]) {
   if (!avb_footer_validate_and_byteswap(&raw_footer, &footer))
     FAIL("Error: invalid AVB footer.\n");
 
-  /* Read VBMeta blob. */
+  /* Read VBMeta blob */
   vbmeta = malloc((size_t)footer.vbmeta_size);
   if (!vbmeta)
     FAIL("Error: out of memory.\n");
@@ -161,7 +163,7 @@ int main(int argc, char *argv[]) {
     FAIL("Error: could not read VBMeta.\n");
   fclose(fp); fp = NULL;
 
-  /* Verify VBMeta signature. */
+  /* Verify VBMeta signature */
   const uint8_t *embedded_key;
   size_t embedded_key_size;
   AvbVBMetaVerifyResult result = avb_vbmeta_image_verify(
@@ -169,17 +171,17 @@ int main(int argc, char *argv[]) {
   if (result != AVB_VBMETA_VERIFY_RESULT_OK)
     FAIL("FAILED: %s\n", avb_vbmeta_verify_result_to_string(result));
 
-  /* Check public key. */
+  /* Check public key */
   if (embedded_key_size != trusted_key_size ||
       memcmp(embedded_key, trusted_key, trusted_key_size) != 0)
     FAIL("FAILED: public key mismatch.\n");
 
-  /* Parse header. */
+  /* Parse header */
   AvbVBMetaImageHeader raw_hdr, hdr;
   memcpy(&raw_hdr, vbmeta, sizeof(raw_hdr));
   avb_vbmeta_image_header_to_host_byte_order(&raw_hdr, &hdr);
 
-  /* Find hashtree descriptor. */
+  /* Find hashtree descriptor */
   HashtreeInfo ht = {0};
   avb_descriptor_foreach(vbmeta, (size_t)footer.vbmeta_size, find_hashtree, &ht);
 
