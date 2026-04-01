@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-project(verify_avb C)
+project(avb_verify C)
 
 set(LIBAVB_DIR avb/libavb)
 
-add_executable(verify_avb
-    verify_avb.c
+add_executable(avb_verify
+    avb_verify.c
     ${LIBAVB_DIR}/avb_chain_partition_descriptor.c
     ${LIBAVB_DIR}/avb_cmdline.c
     ${LIBAVB_DIR}/avb_crc32.c
@@ -27,12 +27,12 @@ add_executable(verify_avb
     ${LIBAVB_DIR}/crypto/mldsa_impl.c
 )
 
-target_compile_definitions(verify_avb PRIVATE AVB_COMPILATION)
-target_include_directories(verify_avb PRIVATE ${CMAKE_SOURCE_DIR} ${LIBAVB_DIR}/crypto)
-target_compile_options(verify_avb PRIVATE -Wall -Wextra)
+target_compile_definitions(avb_verify PRIVATE AVB_COMPILATION)
+target_include_directories(avb_verify PRIVATE ${CMAKE_SOURCE_DIR} ${LIBAVB_DIR}/crypto)
+target_compile_options(avb_verify PRIVATE -Wall -Wextra)
 
 enable_testing()
-add_test(NAME integration COMMAND ${CMAKE_SOURCE_DIR}/verify_avb_test.sh
+add_test(NAME integration COMMAND ${CMAKE_SOURCE_DIR}/avb_verify_test.sh
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(integration PROPERTIES
-    ENVIRONMENT "VERIFY_AVB=$<TARGET_FILE:verify_avb>")
+    ENVIRONMENT "avb_verify=$<TARGET_FILE:avb_verify>")

@@ -3,11 +3,11 @@
  * (C) Copyright 2026
  * Embetrix Embedded Systems Solutions, ayoub.zaki@embetrix.com
  *
- * verify_avb.c : AVB image verifier + dm-verity parameter extractor
+ * avb_verify.c : AVB image verifier + dm-verity parameter extractor
  *
  * Usage:
- *   ./verify_avb <image> <pubkey.bin> [device]
- *   ./verify_avb --dm-table <image> <pubkey.bin> [device]
+ *   ./avb_verify <image> <pubkey.bin> [device]
+ *   ./avb_verify --dm-table <image> <pubkey.bin> [device]
  *
  * Verifies the VBMeta signature, checks the public key, and prints
  * the dm-verity table. If [device] is given, it is used in the table
@@ -111,13 +111,13 @@ int main(int argc, char *argv[]) {
 
   if (argc - argi < 2 || argc - argi > 3) {
     fprintf(stderr,
-      "Usage: verify_avb [--dm-table] <image> <pubkey.bin> [device]\n\n"
+      "Usage: avb_verify [--dm-table] <image> <pubkey.bin> [device]\n\n"
       "Verifies AVB signature and prints dm-verity parameters.\n"
       "If [device] is given, it replaces the image path in the dm table.\n"
       "With --dm-table, prints only the raw dm table line for piping.\n\n"
       "Examples:\n"
-      "  verify_avb system.img pubkey.bin /dev/mmcblk0p2\n"
-      "  verify_avb --dm-table system.img pubkey.bin /dev/sda1 | dmsetup create verity-system\n");
+      "  avb_verify system.img pubkey.bin /dev/mmcblk0p2\n"
+      "  avb_verify --dm-table system.img pubkey.bin /dev/sda1 | dmsetup create verity-system\n");
     return 1;
   }
 

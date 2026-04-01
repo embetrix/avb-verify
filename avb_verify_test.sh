@@ -3,11 +3,11 @@
 # (C) Copyright 2026
 # Embetrix Embedded Systems Solutions, ayoub.zaki@embetrix.com
 #
-# Integration tests for verify_avb
+# Integration tests for avb_verify
 set -euo pipefail
 
 AVBTOOL="python3 avb/avbtool.py"
-VERIFY="${VERIFY_AVB:-./build/verify_avb}"
+VERIFY="${avb_verify:-./build/avb_verify}"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 

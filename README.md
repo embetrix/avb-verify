@@ -19,8 +19,8 @@ cmake --build build
 ## Usage
 
 ```bash
-./verify_avb <image> <pubkey.bin> [device]
-./verify_avb --dm-table <image> <pubkey.bin> [device]
+./avb_verify <image> <pubkey.bin> [device]
+./avb_verify --dm-table <image> <pubkey.bin> [device]
 ```
 
 The public key must be in AVB's serialized format (not PEM). Extract it with:
@@ -34,7 +34,7 @@ python3 avb/avbtool.py extract_public_key --key key.pem --output pubkey.bin
 Verifies the image and prints all dm-verity parameters:
 
 ```bash
-./verify_avb system.img pubkey.bin /dev/mmcblk0p2
+./avb_verify /dev/mmcblk0p2 pubkey.bin
 ```
 
 ```
@@ -54,14 +54,14 @@ dm table:
   0 131072 verity 1 /dev/mmcblk0p2 /dev/mmcblk0p2 4096 4096 16384 16384 sha256 ...
 ```
 
-- `device` is optional used in the dm table output instead of the image path
+- `device` is optional overrides the image path in the dm table output
 
 ### --dm-table mode
 
 Outputs only the raw dm-verity table line, suitable for piping to `dmsetup`:
 
 ```bash
-./verify_avb --dm-table system.img pubkey.bin /dev/mmcblk0p2 | dmsetup create verity-system
+./avb_verify --dm-table /dev/mmcblk0p2 pubkey.bin | dmsetup create verity-system
 ```
 
 ## How it works
@@ -76,11 +76,11 @@ Outputs only the raw dm-verity table line, suitable for piping to `dmsetup`:
 An AVB-signed partition has this layout:
 
 ```
-Offset 0                      → filesystem data (ext4, squashfs, etc.)
-Offset <original_image_size>  → hashtree (dm-verity Merkle tree)
-Offset <vbmeta_offset>        → VBMeta struct (signature + descriptors)
+Offset 0                      | filesystem data (ext4, squashfs, etc.)
+Offset <original_image_size>  | hashtree (dm-verity Merkle tree)
+Offset <vbmeta_offset>        | VBMeta struct (signature + descriptors)
   ...padding...
-Offset <partition_size - 64>  → AVB footer (64 bytes)
+Offset <partition_size - 64>  | AVB footer (64 bytes)
 ```
 
 The footer contains:
