@@ -1,5 +1,7 @@
 # AVB Image Verifier
 
+[![CI](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml/badge.svg)](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml)
+
 A C tool that verifies [Android Verified Boot](https://android.googlesource.com/platform/external/avb/) (AVB) signed images
 using `libavb` and extracts dm-verity parameters for use with `dmsetup`.
 
