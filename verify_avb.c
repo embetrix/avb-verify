@@ -64,6 +64,8 @@ static const char *algorithm_name(uint32_t type) {
     case AVB_ALGORITHM_TYPE_SHA512_RSA2048: return "SHA512_RSA2048";
     case AVB_ALGORITHM_TYPE_SHA512_RSA4096: return "SHA512_RSA4096";
     case AVB_ALGORITHM_TYPE_SHA512_RSA8192: return "SHA512_RSA8192";
+    case AVB_ALGORITHM_TYPE_MLDSA65:       return "MLDSA65";
+    case AVB_ALGORITHM_TYPE_MLDSA87:       return "MLDSA87";
     default: return "NONE";
   }
 }
