@@ -122,3 +122,7 @@ Supported algorithms: `SHA256_RSA2048`, `SHA256_RSA4096`, `SHA256_RSA8192`,
 ```bash
 ctest --test-dir build -V
 ```
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
