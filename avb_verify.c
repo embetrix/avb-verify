@@ -34,6 +34,9 @@
 /* avbtool block size footer is aligned at the end of a 4 KiB block */
 #define AVB_BLOCK_SIZE  4096
 
+/* Scan chunk size: 1 MiB */
+#define SCAN_CHUNK_SIZE  (1024 * 1024)
+
 /* Maximum number of blocks to scan backwards when searching for the
  * AVB footer.  Covers block devices up to 2048 MiB larger than the
  * actual signed image.  Increase if needed. */
@@ -172,26 +175,43 @@ int main(int argc, char *argv[]) {
       avb_footer_validate_and_byteswap(&raw_footer, &footer))
     footer_found = true;
 
-  /* Slow path: scan backwards in 4 KiB steps.
-   * avbtool always writes the footer at the end of a 4 KiB-aligned
-   * block, so we only need to check once per block */
+  /* Slow path: scan forward in 1 MiB chunks
+   * The footer sits at (block_end - 64) for some 4 KiB-aligned block
+    * within the first 2048 MiB of the image/device. */
   if (!footer_found) {
-    uint64_t last_block = image_size / AVB_BLOCK_SIZE;
-    uint64_t min_block  = (last_block > FOOTER_SCAN_MAX_BLOCKS) ?
-                           last_block - FOOTER_SCAN_MAX_BLOCKS : 0;
+    uint8_t *chunk = malloc(SCAN_CHUNK_SIZE);
+    if (!chunk)
+      FAIL("Error: out of memory.\n");
 
-    for (uint64_t blk = last_block; blk > min_block; blk--) {
-      uint64_t candidate = blk * AVB_BLOCK_SIZE - AVB_FOOTER_SIZE;
-      fseek(fp, (long)candidate, SEEK_SET);
-      if (fread(&raw_footer, 1, AVB_FOOTER_SIZE, fp) != AVB_FOOTER_SIZE)
-        continue;
-      if (memcmp(raw_footer.magic, AVB_FOOTER_MAGIC, AVB_FOOTER_MAGIC_LEN) != 0)
-        continue;
-      if (avb_footer_validate_and_byteswap(&raw_footer, &footer)) {
-        footer_found = true;
+    uint64_t scan_end = image_size;
+    uint64_t max_scan = FOOTER_SCAN_MAX_BLOCKS * (uint64_t)AVB_BLOCK_SIZE;
+    if (scan_end > max_scan)
+      scan_end = max_scan;
+
+    for (uint64_t pos = 0; pos < scan_end && !footer_found; ) {
+      uint64_t chunk_len = scan_end - pos;
+      if (chunk_len > SCAN_CHUNK_SIZE)
+        chunk_len = SCAN_CHUNK_SIZE;
+
+      fseek(fp, (long)pos, SEEK_SET);
+      size_t got = fread(chunk, 1, (size_t)chunk_len, fp);
+      if (got < AVB_BLOCK_SIZE)
         break;
+
+      /* Check each 4 KiB footer position within this chunk */
+      uint64_t last_off = (got / AVB_BLOCK_SIZE) * AVB_BLOCK_SIZE - AVB_FOOTER_SIZE;
+      for (uint64_t off = AVB_BLOCK_SIZE - AVB_FOOTER_SIZE; off <= last_off; off += AVB_BLOCK_SIZE) {
+        if (memcmp(chunk + off, AVB_FOOTER_MAGIC, AVB_FOOTER_MAGIC_LEN) != 0)
+          continue;
+        memcpy(&raw_footer, chunk + off, AVB_FOOTER_SIZE);
+        if (avb_footer_validate_and_byteswap(&raw_footer, &footer)) {
+          footer_found = true;
+          break;
+        }
       }
+      pos += got;
     }
+    free(chunk);
   }
 
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
