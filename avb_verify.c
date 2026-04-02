@@ -168,12 +168,13 @@ int main(int argc, char *argv[]) {
   /* Fast path: footer at end of file/device */
   fseek(fp, (long)(image_size - AVB_FOOTER_SIZE), SEEK_SET);
   if (fread(&raw_footer, 1, AVB_FOOTER_SIZE, fp) == AVB_FOOTER_SIZE &&
+      memcmp(raw_footer.magic, AVB_FOOTER_MAGIC, AVB_FOOTER_MAGIC_LEN) == 0 &&
       avb_footer_validate_and_byteswap(&raw_footer, &footer))
     footer_found = true;
 
   /* Slow path: scan backwards in 4 KiB steps.
    * avbtool always writes the footer at the end of a 4 KiB-aligned
-   * block, so we only need to check once per block. */
+   * block, so we only need to check once per block */
   if (!footer_found) {
     uint64_t last_block = image_size / AVB_BLOCK_SIZE;
     uint64_t min_block  = (last_block > FOOTER_SCAN_MAX_BLOCKS) ?
@@ -182,8 +183,11 @@ int main(int argc, char *argv[]) {
     for (uint64_t blk = last_block; blk > min_block; blk--) {
       uint64_t candidate = blk * AVB_BLOCK_SIZE - AVB_FOOTER_SIZE;
       fseek(fp, (long)candidate, SEEK_SET);
-      if (fread(&raw_footer, 1, AVB_FOOTER_SIZE, fp) == AVB_FOOTER_SIZE &&
-          avb_footer_validate_and_byteswap(&raw_footer, &footer)) {
+      if (fread(&raw_footer, 1, AVB_FOOTER_SIZE, fp) != AVB_FOOTER_SIZE)
+        continue;
+      if (memcmp(raw_footer.magic, AVB_FOOTER_MAGIC, AVB_FOOTER_MAGIC_LEN) != 0)
+        continue;
+      if (avb_footer_validate_and_byteswap(&raw_footer, &footer)) {
         footer_found = true;
         break;
       }

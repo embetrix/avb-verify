@@ -108,15 +108,23 @@ else
     nok "footer scanning on padded image"
 fi
 
-# 9. Missing arguments shows usage
+# 9. Footer scanning produces no spurious errors on stderr
+SCAN_ERR=$("$VERIFY" "$TMPDIR/padded.img" "$TMPDIR/pubkey.bin" 2>&1 >/dev/null)
+if echo "$SCAN_ERR" | grep -q "ERROR"; then
+    nok "footer scan has no ERROR on stderr"
+else
+    ok "footer scan has no ERROR on stderr"
+fi
+
+# 11. Missing arguments shows usage
 "$VERIFY" >/dev/null 2>&1 \
     && nok "no args shows usage" || ok "no args shows usage"
 
-# 9. Nonexistent image file
+# 12. Nonexistent image file
 "$VERIFY" "$TMPDIR/nonexistent.img" "$TMPDIR/pubkey.bin" >/dev/null 2>&1 \
     && nok "nonexistent image rejected" || ok "nonexistent image rejected"
 
-# 10. Nonexistent key file
+# 13. Nonexistent key file
 "$VERIFY" "$TMPDIR/system.img" "$TMPDIR/nonexistent.bin" >/dev/null 2>&1 \
     && nok "nonexistent key rejected" || ok "nonexistent key rejected"
 
