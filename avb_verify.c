@@ -51,6 +51,50 @@ typedef struct {
   const uint8_t *root_digest;
 } HashtreeInfo;
 
+/* Little-endian field readers (ext4/erofs superblocks are LE) */
+static uint16_t read_le16(const uint8_t *p) {
+  return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t read_le32(const uint8_t *p) {
+  return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+         ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static uint64_t read_le64(const uint8_t *p) {
+  return (uint64_t)read_le32(p) | ((uint64_t)read_le32(p + 4) << 32);
+}
+
+/* Detect filesystem size from superblock (ext4, erofs sor squashfs).
+ * Returns the filesystem size in bytes or 0 if unknown. */
+static uint64_t detect_fs_size(FILE *fp) {
+  uint8_t sb[4096];
+  fseek(fp, 0, SEEK_SET);
+  if (fread(sb, 1, sizeof(sb), fp) < 2048)
+    return 0;
+
+  /* ext4: superblock at offset 1024, magic 0xEF53 at sb+56 */
+  if (read_le16(sb + 1024 + 56) == 0xEF53) {
+    uint32_t s_blocks_count_lo = read_le32(sb + 1024 + 4);
+    uint32_t s_log_block_size  = read_le32(sb + 1024 + 24);
+    uint64_t block_size = 1024ULL << s_log_block_size;
+    return (uint64_t)s_blocks_count_lo * block_size;
+  }
+
+  /* erofs: superblock at offset 1024, magic 0xE0F5E1E2 at sb+0 */
+  if (read_le32(sb + 1024) == 0xE0F5E1E2) {
+    uint32_t blocks = read_le32(sb + 1024 + 24);
+    return (uint64_t)blocks * 4096;
+  }
+
+  /* squashfs: magic "hsqs" (0x73717368) at offset 0, bytes_used at offset 40 */
+  if (read_le32(sb) == 0x73717368) {
+    return read_le64(sb + 40);
+  }
+
+  return 0;
+}
+
 static void print_hex(const uint8_t *data, size_t len) {
 
   for (size_t i = 0; i < len; i++)
@@ -175,9 +219,10 @@ int main(int argc, char *argv[]) {
       avb_footer_validate_and_byteswap(&raw_footer, &footer))
     footer_found = true;
 
-  /* Slow path: scan forward in 1 MiB chunks
-   * The footer sits at (block_end - 64) for some 4 KiB-aligned block
-    * within the first 2048 MiB of the image/device. */
+  /* Slow path: scan forward in 1 MiB chunks.
+   * Try to detect the filesystem size from its superblock so that we
+   * can skip the bulk of the filesystem data and start scanning right
+   * before the AVB metadata (hashtree + vbmeta + footer) */
   if (!footer_found) {
     uint8_t *chunk = malloc(SCAN_CHUNK_SIZE);
     if (!chunk)
@@ -188,7 +233,14 @@ int main(int argc, char *argv[]) {
     if (scan_end > max_scan)
       scan_end = max_scan;
 
-    for (uint64_t pos = 0; pos < scan_end && !footer_found; ) {
+    /* Start scanning from just before the detected filesystem end,
+     * or from offset 0 if detection fails. */
+    uint64_t fs_size = detect_fs_size(fp);
+    uint64_t scan_start = 0;
+    if (fs_size > SCAN_CHUNK_SIZE)
+      scan_start = (fs_size - SCAN_CHUNK_SIZE) & ~(uint64_t)(AVB_BLOCK_SIZE - 1);
+
+    for (uint64_t pos = scan_start; pos < scan_end && !footer_found; ) {
       uint64_t chunk_len = scan_end - pos;
       if (chunk_len > SCAN_CHUNK_SIZE)
         chunk_len = SCAN_CHUNK_SIZE;

@@ -68,10 +68,13 @@ Outputs only the raw dm-verity table line, suitable for piping to `dmsetup`:
 
 ## How it works
 
-1. Scans for the **AVB footer** to first checks the last 64 bytes, then scans
-   backwards in 4 KiB steps (since `avbtool` always places the footer at the
-   end of a 4 KiB-aligned block). This allows images signed with
-   `--partition_size 0` to work even when written to a larger block device.
+1. Scans for the **AVB footer**: first checks the last 64 bytes of the
+   file/device, then detects the filesystem size from its superblock
+   (ext4, erofs, squashfs) and scans forward in 1 MiB chunks starting
+   just before the filesystem boundary.  Since `avbtool` always places
+   the footer at the end of a 4 KiB-aligned block, this allows images
+   signed with `--partition_size 0` to work even when written to a
+   larger block device.
 2. Calls `avb_vbmeta_image_verify()` from libavb to verify the signature
 3. Compares the embedded public key against the trusted `pubkey.bin`
 4. Extracts the hashtree descriptor and prints the **dm-verity table**
@@ -91,7 +94,9 @@ End of last 4 KiB block − 64  | AVB footer (64 bytes)
 
 When the image is written to a block device larger than the signed image,
 trailing zeroes push the footer away from the end of the device.
-`avb_verify` handles this by scanning backwards in 4 KiB steps.
+`avb_verify` handles this by detecting the filesystem size from its
+superblock and scanning forward in 1 MiB chunks from the filesystem
+boundary.
 
 The footer contains:
 
