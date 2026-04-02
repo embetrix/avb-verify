@@ -25,10 +25,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <time.h>
 
 #include <libavb/libavb.h>
 
 #define FAIL(...) do { fprintf(stderr, __VA_ARGS__); ret = 1; goto out; } while (0)
+
+/* avbtool block size footer is aligned at the end of a 4 KiB block */
+#define AVB_BLOCK_SIZE  4096
+
+/* Maximum number of blocks to scan backwards when searching for the
+ * AVB footer.  Covers block devices up to 2048 MiB larger than the
+ * actual signed image.  Increase if needed. */
+#define FOOTER_SCAN_MAX_BLOCKS  ((2048ULL * 1024 * 1024) / AVB_BLOCK_SIZE)
 
 /* Hashtree params */
 typedef struct {
@@ -137,7 +146,10 @@ int main(int argc, char *argv[]) {
   trusted_key = read_file_all(pubkey_path, &trusted_key_size);
   if (!trusted_key) return 1;
 
-  /* Open image and read footer */
+  /* Open image and find AVB footer
+   * Try the last 64 bytes first (standard location).  If not found,
+   * scan backwards looking for the "AVBf" magic so that images created
+   * with --partition_size 0 work on larger block devices */
   fp = fopen(image_path, "rb");
   if (!fp)
     FAIL("Error: cannot open '%s': %s\n", image_path, strerror(errno));
@@ -148,11 +160,43 @@ int main(int argc, char *argv[]) {
     FAIL("Error: image too small for AVB footer.\n");
 
   AvbFooter raw_footer, footer;
+  bool footer_found = false;
+  struct timespec ts_start, ts_end;
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
+  /* Fast path: footer at end of file/device */
   fseek(fp, (long)(image_size - AVB_FOOTER_SIZE), SEEK_SET);
-  if (fread(&raw_footer, 1, AVB_FOOTER_SIZE, fp) != AVB_FOOTER_SIZE)
-    FAIL("Error: could not read footer.\n");
-  if (!avb_footer_validate_and_byteswap(&raw_footer, &footer))
-    FAIL("Error: invalid AVB footer.\n");
+  if (fread(&raw_footer, 1, AVB_FOOTER_SIZE, fp) == AVB_FOOTER_SIZE &&
+      avb_footer_validate_and_byteswap(&raw_footer, &footer))
+    footer_found = true;
+
+  /* Slow path: scan backwards in 4 KiB steps.
+   * avbtool always writes the footer at the end of a 4 KiB-aligned
+   * block, so we only need to check once per block. */
+  if (!footer_found) {
+    uint64_t last_block = image_size / AVB_BLOCK_SIZE;
+    uint64_t min_block  = (last_block > FOOTER_SCAN_MAX_BLOCKS) ?
+                           last_block - FOOTER_SCAN_MAX_BLOCKS : 0;
+
+    for (uint64_t blk = last_block; blk > min_block; blk--) {
+      uint64_t candidate = blk * AVB_BLOCK_SIZE - AVB_FOOTER_SIZE;
+      fseek(fp, (long)candidate, SEEK_SET);
+      if (fread(&raw_footer, 1, AVB_FOOTER_SIZE, fp) == AVB_FOOTER_SIZE &&
+          avb_footer_validate_and_byteswap(&raw_footer, &footer)) {
+        footer_found = true;
+        break;
+      }
+    }
+  }
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  double scan_ms = (ts_end.tv_sec - ts_start.tv_sec) * 1000.0 +
+                   (ts_end.tv_nsec - ts_start.tv_nsec) / 1e6;
+  fprintf(stderr, "Footer scan: %.3f ms\n", scan_ms);
+
+  if (!footer_found)
+    FAIL("Error: AVB footer not found.\n");
 
   /* Read VBMeta blob */
   vbmeta = malloc((size_t)footer.vbmeta_size);

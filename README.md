@@ -68,22 +68,30 @@ Outputs only the raw dm-verity table line, suitable for piping to `dmsetup`:
 
 ## How it works
 
-1. Reads the **AVB footer** (last 64 bytes) to find the VBMeta offset
+1. Scans for the **AVB footer** to first checks the last 64 bytes, then scans
+   backwards in 4 KiB steps (since `avbtool` always places the footer at the
+   end of a 4 KiB-aligned block). This allows images signed with
+   `--partition_size 0` to work even when written to a larger block device.
 2. Calls `avb_vbmeta_image_verify()` from libavb to verify the signature
 3. Compares the embedded public key against the trusted `pubkey.bin`
 4. Extracts the hashtree descriptor and prints the **dm-verity table**
 
 ## Image layout
 
-An AVB-signed partition has this layout:
+With `--partition_size 0`, `avbtool` appends metadata directly after the
+filesystem data (no padding to a fixed partition size):
 
 ```
 Offset 0                      | filesystem data (ext4, squashfs, etc.)
 Offset <original_image_size>  | hashtree (dm-verity Merkle tree)
 Offset <vbmeta_offset>        | VBMeta struct (signature + descriptors)
-  ...padding...
-Offset <partition_size - 64>  | AVB footer (64 bytes)
+  ...padding to 4 KiB block...
+End of last 4 KiB block − 64  | AVB footer (64 bytes)
 ```
+
+When the image is written to a block device larger than the signed image,
+trailing zeroes push the footer away from the end of the device.
+`avb_verify` handles this by scanning backwards in 4 KiB steps.
 
 The footer contains:
 
@@ -108,7 +116,7 @@ mkfs.ext4 -F system.img
 
 python3 avb/avbtool.py add_hashtree_footer \
   --image system.img \
-  --partition_size 134217728 \
+  --partition_size 0 \
   --partition_name system \
   --algorithm SHA256_RSA4096 \
   --key key.pem \

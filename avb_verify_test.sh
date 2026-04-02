@@ -34,15 +34,15 @@ openssl genrsa -out "$TMPDIR/wrong_key.pem" 4096 2>/dev/null
 $AVBTOOL extract_public_key --key "$TMPDIR/key.pem" --output "$TMPDIR/pubkey.bin"
 $AVBTOOL extract_public_key --key "$TMPDIR/wrong_key.pem" --output "$TMPDIR/wrong_pubkey.bin"
 
-# Create a small ext4 image (4MB filesystem, 8MB partition)
+# Create a small ext4 image (4MB filesystem)
 truncate -s 4M "$TMPDIR/system.img"
 mkfs.ext4 -q "$TMPDIR/system.img"
 
-# Sign with add_hashtree_footer
+# Sign with add_hashtree_footer (--partition_size 0 appends footer at end of data)
 $AVBTOOL add_hashtree_footer \
     --image "$TMPDIR/system.img" \
     --partition_name system \
-    --partition_size 8388608 \
+    --partition_size 0 \
     --algorithm SHA256_RSA4096 \
     --hash_algorithm sha256 \
     --key "$TMPDIR/key.pem" \
@@ -99,7 +99,16 @@ truncate -s 32 "$TMPDIR/tiny.img"
 "$VERIFY" "$TMPDIR/tiny.img" "$TMPDIR/pubkey.bin" >/dev/null 2>&1 \
     && nok "truncated file rejected" || ok "truncated file rejected"
 
-# 8. Missing arguments shows usage
+# 8. Footer scanning: image padded to a larger size (simulates writing to a bigger device)
+cp "$TMPDIR/system.img" "$TMPDIR/padded.img"
+truncate -s 8M "$TMPDIR/padded.img"
+if "$VERIFY" "$TMPDIR/padded.img" "$TMPDIR/pubkey.bin" >/dev/null 2>&1; then
+    ok "footer scanning on padded image"
+else
+    nok "footer scanning on padded image"
+fi
+
+# 9. Missing arguments shows usage
 "$VERIFY" >/dev/null 2>&1 \
     && nok "no args shows usage" || ok "no args shows usage"
 
