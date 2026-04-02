@@ -43,6 +43,8 @@ else()
     target_include_directories(avb_verify PRIVATE ${CMAKE_SOURCE_DIR}/avb ${LIBAVB_DIR}/crypto)
 endif()
 
+install(TARGETS avb_verify RUNTIME DESTINATION bin)
+
 enable_testing()
 add_test(NAME integration COMMAND ${CMAKE_SOURCE_DIR}/avb_verify_test.sh
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
