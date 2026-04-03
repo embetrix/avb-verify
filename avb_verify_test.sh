@@ -48,6 +48,34 @@ $AVBTOOL add_hashtree_footer \
     --key "$TMPDIR/key.pem" \
     --do_not_generate_fec
 
+# Create a small erofs image
+mkdir -p "$TMPDIR/erofs_root"
+echo "erofs test" > "$TMPDIR/erofs_root/hello.txt"
+mkfs.erofs "$TMPDIR/erofs.img" "$TMPDIR/erofs_root" 2>/dev/null
+
+$AVBTOOL add_hashtree_footer \
+    --image "$TMPDIR/erofs.img" \
+    --partition_name erofs_part \
+    --partition_size 0 \
+    --algorithm SHA256_RSA4096 \
+    --hash_algorithm sha256 \
+    --key "$TMPDIR/key.pem" \
+    --do_not_generate_fec
+
+# Create a small squashfs image
+mkdir -p "$TMPDIR/squashfs_root"
+echo "squashfs test" > "$TMPDIR/squashfs_root/hello.txt"
+mksquashfs "$TMPDIR/squashfs_root" "$TMPDIR/squashfs.img" -quiet -noappend
+
+$AVBTOOL add_hashtree_footer \
+    --image "$TMPDIR/squashfs.img" \
+    --partition_name squashfs_part \
+    --partition_size 0 \
+    --algorithm SHA256_RSA4096 \
+    --hash_algorithm sha256 \
+    --key "$TMPDIR/key.pem" \
+    --do_not_generate_fec
+
 echo ""
 echo "=== Running tests ==="
 
@@ -127,6 +155,52 @@ fi
 # 13. Nonexistent key file
 "$VERIFY" "$TMPDIR/system.img" "$TMPDIR/nonexistent.bin" >/dev/null 2>&1 \
     && nok "nonexistent key rejected" || ok "nonexistent key rejected"
+
+# 14. erofs: basic verification
+if "$VERIFY" "$TMPDIR/erofs.img" "$TMPDIR/pubkey.bin" 2>/dev/null | grep -q "Verification:  OK"; then
+    ok "erofs basic verification"
+else
+    nok "erofs basic verification"
+fi
+
+# 15. erofs: --dm-table output
+if "$VERIFY" --dm-table "$TMPDIR/erofs.img" "$TMPDIR/pubkey.bin" 2>/dev/null | grep -q "^0 .* verity "; then
+    ok "erofs --dm-table output"
+else
+    nok "erofs --dm-table output"
+fi
+
+# 16. erofs: footer scanning on padded image
+cp "$TMPDIR/erofs.img" "$TMPDIR/erofs_padded.img"
+truncate -s 8M "$TMPDIR/erofs_padded.img"
+if "$VERIFY" "$TMPDIR/erofs_padded.img" "$TMPDIR/pubkey.bin" >/dev/null 2>&1; then
+    ok "erofs footer scanning on padded image"
+else
+    nok "erofs footer scanning on padded image"
+fi
+
+# 17. squashfs: basic verification
+if "$VERIFY" "$TMPDIR/squashfs.img" "$TMPDIR/pubkey.bin" 2>/dev/null | grep -q "Verification:  OK"; then
+    ok "squashfs basic verification"
+else
+    nok "squashfs basic verification"
+fi
+
+# 18. squashfs: --dm-table output
+if "$VERIFY" --dm-table "$TMPDIR/squashfs.img" "$TMPDIR/pubkey.bin" 2>/dev/null | grep -q "^0 .* verity "; then
+    ok "squashfs --dm-table output"
+else
+    nok "squashfs --dm-table output"
+fi
+
+# 19. squashfs: footer scanning on padded image
+cp "$TMPDIR/squashfs.img" "$TMPDIR/squashfs_padded.img"
+truncate -s 8M "$TMPDIR/squashfs_padded.img"
+if "$VERIFY" "$TMPDIR/squashfs_padded.img" "$TMPDIR/pubkey.bin" >/dev/null 2>&1; then
+    ok "squashfs footer scanning on padded image"
+else
+    nok "squashfs footer scanning on padded image"
+fi
 
 echo ""
 echo "=== Results: $pass passed, $fail failed ==="
