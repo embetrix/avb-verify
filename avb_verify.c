@@ -83,8 +83,9 @@ static uint64_t detect_fs_size(FILE *fp) {
 
   /* erofs: superblock at offset 1024, magic 0xE0F5E1E2 at sb+0 */
   if (read_le32(sb + 1024) == 0xE0F5E1E2) {
-    uint32_t blocks = read_le32(sb + 1024 + 24);
-    return (uint64_t)blocks * 4096;
+    uint8_t blkszbits = sb[1024 + 12];
+    uint32_t blocks = read_le32(sb + 1024 + 36);
+    return (uint64_t)blocks << blkszbits;
   }
 
   /* squashfs: magic "hsqs" (0x73717368) at offset 0, bytes_used at offset 40 */
