@@ -170,28 +170,26 @@ static bool find_hashtree(const AvbDescriptor *desc, void *user_data) {
 
 static void usage(const char *prog) {
   fprintf(stderr,
-    "Usage: %s -i <image> -k <pubkey.bin> [-x <sha256>] [-d <device>] [-t] [-h]\n\n"
+    "Usage: %s -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-h]\n\n"
     "Verify AVB signature and print dm-verity parameters.\n\n"
     "Options:\n"
-    "  -i, --image <path>              Image file or block device (required)\n"
+    "  -d, --device <path>             Image file or block device (required)\n"
     "  -k, --pubkey <path>             AVB public key file (required)\n"
     "  -x, --pubkey-digest <hex>       Verify key matches this SHA-256 digest\n"
-    "  -d, --device <path>             Device path for dm table (default: image path)\n"
     "  -t, --dm-table                  Print only the raw dm table line\n"
     "  -h, --help                      Show this help\n\n"
     "Examples:\n"
-    "  %s -i /dev/mmcblk0p2 -k pubkey.bin\n"
-    "  %s -i /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)\n"
-    "  %s -t -i /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system\n",
+    "  %s -d /dev/mmcblk0p2 -k pubkey.bin\n"
+    "  %s -d /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)\n"
+    "  %s -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system\n",
     prog, prog, prog, prog);
 }
 
 int main(int argc, char *argv[]) {
 
   bool dm_table_only = false;
-  const char *image_path  = NULL;
-  const char *pubkey_path = NULL;
   const char *device_path = NULL;
+  const char *pubkey_path = NULL;
   const char *pubkey_digest_hex = NULL;
 
   int ret = 0;
@@ -200,7 +198,6 @@ int main(int argc, char *argv[]) {
   FILE *fp = NULL;
 
   static const struct option long_opts[] = {
-    {"image",         required_argument, NULL, 'i'},
     {"pubkey",        required_argument, NULL, 'k'},
     {"pubkey-digest", required_argument, NULL, 'x'},
     {"device",        required_argument, NULL, 'd'},
@@ -210,12 +207,11 @@ int main(int argc, char *argv[]) {
   };
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "i:k:x:d:th", long_opts, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "d:k:x:th", long_opts, NULL)) != -1) {
     switch (opt) {
-      case 'i': image_path  = optarg; break;
+      case 'd': device_path = optarg; break;
       case 'k': pubkey_path = optarg; break;
       case 'x': pubkey_digest_hex = optarg; break;
-      case 'd': device_path = optarg; break;
       case 't': dm_table_only = true; break;
       case 'h':
       default:
@@ -224,13 +220,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (!image_path || !pubkey_path) {
+  if (!device_path || !pubkey_path) {
     usage(argv[0]);
     return 1;
   }
-
-  if (!device_path)
-    device_path = image_path;
 
   /* Parse --pubkey-digest if given */
   uint8_t expected_digest[AVB_SHA256_DIGEST_SIZE];
@@ -252,9 +245,9 @@ int main(int argc, char *argv[]) {
    * Try the last 64 bytes first (standard location).  If not found,
    * scan backwards looking for the "AVBf" magic so that images created
    * with --partition_size 0 work on larger block devices */
-  fp = fopen(image_path, "rb");
+  fp = fopen(device_path, "rb");
   if (!fp)
-    FAIL("Error: cannot open '%s': %s\n", image_path, strerror(errno));
+    FAIL("Error: cannot open '%s': %s\n", device_path, strerror(errno));
 
   fseek(fp, 0, SEEK_END);
   uint64_t image_size = (uint64_t)ftell(fp);

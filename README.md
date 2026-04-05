@@ -21,15 +21,14 @@ cmake --build build
 ## Usage
 
 ```
-avb_verify -i <image> -k <pubkey.bin> [-x <sha256>] [-d <device>] [-t] [-h]
+avb_verify -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-h]
 ```
 
 | Option | Description |
 |---|---|
-| `-i, --image <path>` | Image file or block device (required) |
+| `-d, --device <path>` | Image file or block device (required) |
 | `-k, --pubkey <path>` | AVB public key file (required) |
 | `-x, --pubkey-digest <hex>` | Verify key matches this SHA-256 digest (e.g. from OTP) |
-| `-d, --device <path>` | Device path for dm table (default: image path) |
 | `-t, --dm-table` | Print only the raw dm table line |
 | `-h, --help` | Show help |
 
@@ -44,7 +43,7 @@ python3 avb/avbtool.py extract_public_key --key key.pem --output pubkey.bin
 Verifies the image and prints all dm-verity parameters:
 
 ```bash
-avb_verify -i /dev/mmcblk0p2 -k pubkey.bin
+avb_verify -d /dev/mmcblk0p2 -k pubkey.bin
 ```
 
 ```
@@ -64,18 +63,12 @@ dm table:
   0 131072 verity 1 /dev/mmcblk0p2 /dev/mmcblk0p2 4096 4096 16384 16384 sha256 ...
 ```
 
-Use `-d` to override the device path in the dm table output:
-
-```bash
-avb_verify -i system.img -k pubkey.bin -d /dev/mmcblk0p2
-```
-
 ### dm-table mode
 
 With `-t`, outputs only the raw dm-verity table line, suitable for piping to `dmsetup`:
 
 ```bash
-avb_verify -t -i /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system
+avb_verify -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system
 ```
 
 ### OTP key digest verification
@@ -84,7 +77,7 @@ Use `-x` to additionally verify that the public key's SHA-256 matches
 a known digest (e.g. a value burned into OTP fuses):
 
 ```bash
-avb_verify -i /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)
+avb_verify -d /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)
 ```
 
 ## How it works
