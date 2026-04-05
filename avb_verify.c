@@ -5,22 +5,15 @@
  *
  * avb_verify.c : AVB image verifier + dm-verity parameter extractor
  *
- * Usage:
- *   ./avb_verify <image> <pubkey.bin> [device]
- *   ./avb_verify --dm-table <image> <pubkey.bin> [device]
- *
  * Verifies the VBMeta signature, checks the public key, and prints
- * the dm-verity table. If [device] is given, it is used in the table
- * output instead of the image path.
- *
- * With --dm-table, prints only the raw dm table line (for piping to
- * dmsetup create).
+ * the dm-verity table.
  *
  * Extract the public key with:
  *   avbtool extract_public_key --key key.pem --output pubkey.bin
  */
 
 #include <errno.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -158,36 +151,64 @@ static bool find_hashtree(const AvbDescriptor *desc, void *user_data) {
   return false;
 }
 
+static void usage(const char *prog) {
+  fprintf(stderr,
+    "Usage: %s -i <image> -k <pubkey.bin> [-d <device>] [-t] [-h]\n\n"
+    "Verify AVB signature and print dm-verity parameters.\n\n"
+    "Options:\n"
+    "  -i, --image <path>    Image file or block device (required)\n"
+    "  -k, --key <path>      AVB public key file (required)\n"
+    "  -d, --device <path>   Device path for dm table (default: image path)\n"
+    "  -t, --dm-table        Print only the raw dm table line\n"
+    "  -h, --help            Show this help\n\n"
+    "Examples:\n"
+    "  %s -i /dev/mmcblk0p2 -k pubkey.bin\n"
+    "  %s -t -i /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system\n",
+    prog, prog, prog);
+}
+
 int main(int argc, char *argv[]) {
 
   bool dm_table_only = false;
-  int argi = 1;
+  const char *image_path  = NULL;
+  const char *pubkey_path = NULL;
+  const char *device_path = NULL;
 
   int ret = 0;
   uint8_t *trusted_key = NULL;
   uint8_t *vbmeta = NULL;
   FILE *fp = NULL;
 
-  if (argi < argc && strcmp(argv[argi], "--dm-table") == 0) {
-    dm_table_only = true;
-    argi++;
+  static const struct option long_opts[] = {
+    {"image",    required_argument, NULL, 'i'},
+    {"key",      required_argument, NULL, 'k'},
+    {"device",   required_argument, NULL, 'd'},
+    {"dm-table", no_argument,       NULL, 't'},
+    {"help",     no_argument,       NULL, 'h'},
+    {NULL, 0, NULL, 0}
+  };
+
+  int opt;
+  while ((opt = getopt_long(argc, argv, "i:k:d:th", long_opts, NULL)) != -1) {
+    switch (opt) {
+      case 'i': image_path  = optarg; break;
+      case 'k': pubkey_path = optarg; break;
+      case 'd': device_path = optarg; break;
+      case 't': dm_table_only = true; break;
+      case 'h':
+      default:
+        usage(argv[0]);
+        return (opt == 'h') ? 0 : 1;
+    }
   }
 
-  if (argc - argi < 2 || argc - argi > 3) {
-    fprintf(stderr,
-      "Usage: avb_verify [--dm-table] <image> <pubkey.bin> [device]\n\n"
-      "Verifies AVB signature and prints dm-verity parameters.\n"
-      "If [device] is given, it replaces the image path in the dm table.\n"
-      "With --dm-table, prints only the raw dm table line for piping.\n\n"
-      "Examples:\n"
-      "  avb_verify /dev/mmcblk0p2 pubkey.bin\n"
-      "  avb_verify --dm-table /dev/mmcblk0p2 pubkey.bin | dmsetup create verity-system\n");
+  if (!image_path || !pubkey_path) {
+    usage(argv[0]);
     return 1;
   }
 
-  const char *image_path  = argv[argi];
-  const char *pubkey_path = argv[argi + 1];
-  const char *device_path = (argc - argi == 3) ? argv[argi + 2] : image_path;
+  if (!device_path)
+    device_path = image_path;
 
   /* Load trusted public key */
   size_t trusted_key_size;
