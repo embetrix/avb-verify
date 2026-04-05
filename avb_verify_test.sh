@@ -203,6 +203,34 @@ else
     nok "squashfs footer scanning on padded image"
 fi
 
+# 20. -x: verification succeeds with correct digest
+DIGEST=$(sha256sum "$TMPDIR/pubkey.bin" | cut -d' ' -f1)
+if "$VERIFY" -i "$TMPDIR/system.img" -k "$TMPDIR/pubkey.bin" -x "$DIGEST" 2>/dev/null | grep -q "Verification:  OK"; then
+    ok "-x correct digest"
+else
+    nok "-x correct digest"
+fi
+
+# 21. -x: wrong digest is rejected
+WRONG_DIGEST=$(sha256sum "$TMPDIR/wrong_pubkey.bin" | cut -d' ' -f1)
+"$VERIFY" -i "$TMPDIR/system.img" -k "$TMPDIR/pubkey.bin" -x "$WRONG_DIGEST" >/dev/null 2>&1 \
+    && nok "-x wrong digest rejected" || ok "-x wrong digest rejected"
+
+# 22. -x: invalid hex is rejected
+"$VERIFY" -i "$TMPDIR/system.img" -k "$TMPDIR/pubkey.bin" -x "not_hex" >/dev/null 2>&1 \
+    && nok "-x invalid hex rejected" || ok "-x invalid hex rejected"
+
+# 23. -x without -k is rejected
+"$VERIFY" -i "$TMPDIR/system.img" -x "$DIGEST" >/dev/null 2>&1 \
+    && nok "-x without -k rejected" || ok "-x without -k rejected"
+
+# 24. -x with --dm-table
+if "$VERIFY" -t -i "$TMPDIR/system.img" -k "$TMPDIR/pubkey.bin" -x "$DIGEST" 2>/dev/null | grep -q "^0 .* verity "; then
+    ok "-x with --dm-table"
+else
+    nok "-x with --dm-table"
+fi
+
 echo ""
 echo "=== Results: $pass passed, $fail failed ==="
 exit "$fail"

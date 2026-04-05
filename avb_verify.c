@@ -21,6 +21,7 @@
 #include <time.h>
 
 #include <libavb/libavb.h>
+#include <libavb/avb_sha.h>
 
 #define FAIL(...) do { fprintf(stderr, __VA_ARGS__); ret = 1; goto out; } while (0)
 
@@ -95,6 +96,22 @@ static void print_hex(const uint8_t *data, size_t len) {
     printf("%02x", data[i]);
 }
 
+/* Parse a hex string into a byte buffer
+ * Returns number of bytes written
+ * or -1 on error */
+static int parse_hex(const char *hex, uint8_t *out, size_t out_max) {
+  size_t len = strlen(hex);
+  if (len % 2 != 0 || len / 2 > out_max)
+    return -1;
+  for (size_t i = 0; i < len; i += 2) {
+    unsigned int byte;
+    if (sscanf(hex + i, "%2x", &byte) != 1)
+      return -1;
+    out[i / 2] = (uint8_t)byte;
+  }
+  return (int)(len / 2);
+}
+
 static uint8_t *read_file_all(const char *path, size_t *out_size) {
 
   FILE *fp = fopen(path, "rb");
@@ -153,18 +170,20 @@ static bool find_hashtree(const AvbDescriptor *desc, void *user_data) {
 
 static void usage(const char *prog) {
   fprintf(stderr,
-    "Usage: %s -i <image> -k <pubkey.bin> [-d <device>] [-t] [-h]\n\n"
+    "Usage: %s -i <image> -k <pubkey.bin> [-x <sha256>] [-d <device>] [-t] [-h]\n\n"
     "Verify AVB signature and print dm-verity parameters.\n\n"
     "Options:\n"
-    "  -i, --image <path>    Image file or block device (required)\n"
-    "  -k, --key <path>      AVB public key file (required)\n"
-    "  -d, --device <path>   Device path for dm table (default: image path)\n"
-    "  -t, --dm-table        Print only the raw dm table line\n"
-    "  -h, --help            Show this help\n\n"
+    "  -i, --image <path>              Image file or block device (required)\n"
+    "  -k, --pubkey <path>             AVB public key file (required)\n"
+    "  -x, --pubkey-digest <hex>       Verify key matches this SHA-256 digest\n"
+    "  -d, --device <path>             Device path for dm table (default: image path)\n"
+    "  -t, --dm-table                  Print only the raw dm table line\n"
+    "  -h, --help                      Show this help\n\n"
     "Examples:\n"
     "  %s -i /dev/mmcblk0p2 -k pubkey.bin\n"
+    "  %s -i /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)\n"
     "  %s -t -i /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system\n",
-    prog, prog, prog);
+    prog, prog, prog, prog);
 }
 
 int main(int argc, char *argv[]) {
@@ -173,6 +192,7 @@ int main(int argc, char *argv[]) {
   const char *image_path  = NULL;
   const char *pubkey_path = NULL;
   const char *device_path = NULL;
+  const char *pubkey_digest_hex = NULL;
 
   int ret = 0;
   uint8_t *trusted_key = NULL;
@@ -180,19 +200,21 @@ int main(int argc, char *argv[]) {
   FILE *fp = NULL;
 
   static const struct option long_opts[] = {
-    {"image",    required_argument, NULL, 'i'},
-    {"key",      required_argument, NULL, 'k'},
-    {"device",   required_argument, NULL, 'd'},
-    {"dm-table", no_argument,       NULL, 't'},
-    {"help",     no_argument,       NULL, 'h'},
+    {"image",         required_argument, NULL, 'i'},
+    {"pubkey",        required_argument, NULL, 'k'},
+    {"pubkey-digest", required_argument, NULL, 'x'},
+    {"device",        required_argument, NULL, 'd'},
+    {"dm-table",      no_argument,       NULL, 't'},
+    {"help",          no_argument,       NULL, 'h'},
     {NULL, 0, NULL, 0}
   };
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "i:k:d:th", long_opts, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "i:k:x:d:th", long_opts, NULL)) != -1) {
     switch (opt) {
       case 'i': image_path  = optarg; break;
       case 'k': pubkey_path = optarg; break;
+      case 'x': pubkey_digest_hex = optarg; break;
       case 'd': device_path = optarg; break;
       case 't': dm_table_only = true; break;
       case 'h':
@@ -209,6 +231,17 @@ int main(int argc, char *argv[]) {
 
   if (!device_path)
     device_path = image_path;
+
+  /* Parse --pubkey-digest if given */
+  uint8_t expected_digest[AVB_SHA256_DIGEST_SIZE];
+  bool check_digest = (pubkey_digest_hex != NULL);
+
+  if (check_digest) {
+    if (parse_hex(pubkey_digest_hex, expected_digest, AVB_SHA256_DIGEST_SIZE) != AVB_SHA256_DIGEST_SIZE) {
+      fprintf(stderr, "Error: --pubkey-digest must be a 64-character hex SHA-256 digest.\n");
+      return 1;
+    }
+  }
 
   /* Load trusted public key */
   size_t trusted_key_size;
@@ -317,6 +350,16 @@ int main(int argc, char *argv[]) {
   if (embedded_key_size != trusted_key_size ||
       memcmp(embedded_key, trusted_key, trusted_key_size) != 0)
     FAIL("FAILED: public key mismatch.\n");
+
+  /* Check public key digest against OTP value if requested */
+  if (check_digest) {
+    AvbSHA256Ctx ctx;
+    avb_sha256_init(&ctx);
+    avb_sha256_update(&ctx, embedded_key, embedded_key_size);
+    uint8_t *digest = avb_sha256_final(&ctx);
+    if (memcmp(digest, expected_digest, AVB_SHA256_DIGEST_SIZE) != 0)
+      FAIL("FAILED: public key digest mismatch.\n");
+  }
 
   /* Parse header */
   AvbVBMetaImageHeader raw_hdr, hdr;

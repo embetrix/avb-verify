@@ -21,13 +21,14 @@ cmake --build build
 ## Usage
 
 ```
-avb_verify -i <image> -k <pubkey.bin> [-d <device>] [-t] [-h]
+avb_verify -i <image> -k <pubkey.bin> [-x <sha256>] [-d <device>] [-t] [-h]
 ```
 
 | Option | Description |
 |---|---|
 | `-i, --image <path>` | Image file or block device (required) |
-| `-k, --key <path>` | AVB public key file (required) |
+| `-k, --pubkey <path>` | AVB public key file (required) |
+| `-x, --pubkey-digest <hex>` | Verify key matches this SHA-256 digest (e.g. from OTP) |
 | `-d, --device <path>` | Device path for dm table (default: image path) |
 | `-t, --dm-table` | Print only the raw dm table line |
 | `-h, --help` | Show help |
@@ -75,6 +76,15 @@ With `-t`, outputs only the raw dm-verity table line, suitable for piping to `dm
 
 ```bash
 avb_verify -t -i /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system
+```
+
+### OTP key digest verification
+
+Use `-x` to additionally verify that the public key's SHA-256 matches
+a known digest (e.g. a value burned into OTP fuses):
+
+```bash
+avb_verify -i /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)
 ```
 
 ## How it works
