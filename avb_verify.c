@@ -19,6 +19,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <linux/keyctl.h>
 
 #include <libavb/libavb.h>
 #include <libavb/avb_sha.h>
@@ -35,6 +38,8 @@
  * AVB footer.  Covers block devices up to 2048 MiB larger than the
  * actual signed image.  Increase if needed. */
 #define FOOTER_SCAN_MAX_BLOCKS  ((2048ULL * 1024 * 1024) / AVB_BLOCK_SIZE)
+
+#define ROOTHASH_SIG_KEY_PREFIX  "avb_roothash_sig."
 
 /* Hashtree params */
 typedef struct {
@@ -178,6 +183,9 @@ static void usage(const char *prog) {
     "  -x, --pubkey-digest <hex>       Verify key matches this SHA-256 digest\n"
     "  -t, --dm-table                  Print only the raw dm table line\n"
     "  -h, --help                      Show this help\n\n"
+    "If a 'roothash_sig' property (PKCS#7) is found in the vbmeta image,\n"
+    "it is loaded into the session keyring and 'root_hash_sig_key_desc'\n"
+    "is appended to the dm-verity table for kernel-level verification.\n\n"
     "Examples:\n"
     "  %s -d /dev/mmcblk0p2 -k pubkey.bin\n"
     "  %s -d /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)\n"
@@ -366,6 +374,32 @@ int main(int argc, char *argv[]) {
   if (!ht.found)
     FAIL("No hashtree descriptor found.\n");
 
+  /* Look up root hash signature from vbmeta property.
+   * If found, load it into the session keyring so the kernel can
+   * verify it via CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG. */
+  char sig_key_desc[64 + sizeof(ROOTHASH_SIG_KEY_PREFIX)] = {0};
+  bool has_roothash_sig = false;
+  {
+    size_t sig_size = 0;
+    const char *sig_data = avb_property_lookup(
+        vbmeta, (size_t)footer.vbmeta_size,
+        "roothash_sig", 0, &sig_size);
+    if (sig_data && sig_size > 0) {
+      snprintf(sig_key_desc, sizeof(sig_key_desc), "%s%.*s",
+               ROOTHASH_SIG_KEY_PREFIX,
+               (int)ht.ht.partition_name_len, ht.partition_name);
+      long key_id = syscall(__NR_add_key, "user", sig_key_desc,
+                            sig_data, sig_size,
+                            KEY_SPEC_SESSION_KEYRING);
+      if (key_id < 0)
+        FAIL("Error: add_key to session keyring: %s\n", strerror(errno));
+      has_roothash_sig = true;
+      if (!dm_table_only)
+        fprintf(stderr, "Roothash signature loaded into keyring: %s (%zu bytes)\n",
+                sig_key_desc, sig_size);
+    }
+  }
+
   unsigned long data_blocks = (unsigned long)(ht.ht.image_size / ht.ht.data_block_size);
   unsigned long sectors     = data_blocks * (ht.ht.data_block_size / 512);
   unsigned long hash_start  = (unsigned long)(ht.ht.tree_offset / ht.ht.hash_block_size);
@@ -380,6 +414,8 @@ int main(int argc, char *argv[]) {
     print_hex(ht.root_digest, ht.ht.root_digest_len);
     printf(" ");
     print_hex(ht.salt, ht.ht.salt_len);
+    if (has_roothash_sig)
+      printf(" 2 root_hash_sig_key_desc %s", sig_key_desc);
     printf("\n");
     goto out;
   }
@@ -395,6 +431,8 @@ int main(int argc, char *argv[]) {
   printf("Hash offset:   %lu\n", (unsigned long)ht.ht.tree_offset);
   printf("Root digest:   "); print_hex(ht.root_digest, ht.ht.root_digest_len); printf("\n");
   printf("Salt:          "); print_hex(ht.salt, ht.ht.salt_len); printf("\n");
+  if (has_roothash_sig)
+    printf("Roothash sig:  %s\n", sig_key_desc);
 
   printf("\ndm table:\n");
   printf("  0 %lu verity %u %s %s %u %u %lu %lu %s ",
@@ -406,6 +444,8 @@ int main(int argc, char *argv[]) {
   print_hex(ht.root_digest, ht.ht.root_digest_len);
   printf(" ");
   print_hex(ht.salt, ht.ht.salt_len);
+  if (has_roothash_sig)
+    printf(" 2 root_hash_sig_key_desc %s", sig_key_desc);
   printf("\n");
 
 out:

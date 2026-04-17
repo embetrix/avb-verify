@@ -48,6 +48,37 @@ $AVBTOOL add_hashtree_footer \
     --key "$TMPDIR/key.pem" \
     --do_not_generate_fec
 
+# Extract the root hash from the signed image, create PKCS#7 signature,
+# and rebuild with the signature embedded as a property.
+ROOT_HASH=$($AVBTOOL info_image --image "$TMPDIR/system.img" 2>/dev/null \
+    | sed -n 's/.*Root Digest:[[:space:]]*//p')
+echo -n "$ROOT_HASH" | xxd -r -p > "$TMPDIR/roothash.bin"
+
+# Create a self-signed certificate for root hash signing
+openssl req -x509 -newkey rsa:4096 -keyout "$TMPDIR/sig_key.pem" \
+    -out "$TMPDIR/sig_cert.pem" -days 365 -nodes \
+    -subj "/CN=roothash-signer" 2>/dev/null
+
+# Create PKCS#7 detached signature of the root hash
+openssl smime -sign -nocerts -noattr -binary \
+    -in "$TMPDIR/roothash.bin" -inkey "$TMPDIR/sig_key.pem" \
+    -signer "$TMPDIR/sig_cert.pem" \
+    -outform der -out "$TMPDIR/roothash.p7s"
+
+# Create a second image with the signature embedded as a property
+cp "$TMPDIR/system.img" "$TMPDIR/system_sig.img"
+# Strip existing footer, re-sign with --prop_from_file
+$AVBTOOL erase_footer --image "$TMPDIR/system_sig.img" 2>/dev/null
+$AVBTOOL add_hashtree_footer \
+    --image "$TMPDIR/system_sig.img" \
+    --partition_name system \
+    --partition_size 0 \
+    --algorithm SHA256_RSA4096 \
+    --hash_algorithm sha256 \
+    --key "$TMPDIR/key.pem" \
+    --do_not_generate_fec \
+    --prop_from_file roothash_sig:"$TMPDIR/roothash.p7s"
+
 # Create a small erofs image
 mkdir -p "$TMPDIR/erofs_root"
 echo "erofs test" > "$TMPDIR/erofs_root/hello.txt"
@@ -225,6 +256,31 @@ if "$VERIFY" -t -d "$TMPDIR/system.img" -k "$TMPDIR/pubkey.bin" -x "$DIGEST" 2>/
     ok "-x with --dm-table"
 else
     nok "-x with --dm-table"
+fi
+
+# 25. system_sig: dm-table includes root_hash_sig_key_desc
+DM_SIG_OUT=$("$VERIFY" -t -d "$TMPDIR/system_sig.img" -k "$TMPDIR/pubkey.bin" 2>/dev/null)
+echo "$DM_SIG_OUT" | grep -q "root_hash_sig_key_desc avb_roothash_sig.system" \
+    && ok "dm-table has root_hash_sig_key_desc" || nok "dm-table has root_hash_sig_key_desc"
+
+# 26. system_sig: verbose output shows Roothash sig field
+SIG_OUT=$("$VERIFY" -d "$TMPDIR/system_sig.img" -k "$TMPDIR/pubkey.bin" 2>/dev/null)
+echo "$SIG_OUT" | grep -q "Roothash sig:.*avb_roothash_sig.system" \
+    && ok "verbose output has Roothash sig" || nok "verbose output has Roothash sig"
+
+# 27. system_sig: key is in session keyring after extraction
+if keyctl search @s user avb_roothash_sig.system >/dev/null 2>&1; then
+    ok "roothash sig key in session keyring"
+else
+    nok "roothash sig key in session keyring"
+fi
+
+# 28. system without sig: dm-table does NOT have root_hash_sig_key_desc
+DM_NOSIG=$("$VERIFY" -t -d "$TMPDIR/system.img" -k "$TMPDIR/pubkey.bin" 2>/dev/null)
+if echo "$DM_NOSIG" | grep -q "root_hash_sig_key_desc"; then
+    nok "dm-table without sig has no root_hash_sig_key_desc"
+else
+    ok "dm-table without sig has no root_hash_sig_key_desc"
 fi
 
 echo ""
