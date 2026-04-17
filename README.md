@@ -58,10 +58,15 @@ Hash block sz: 4096
 Hash offset:   67108864
 Root digest:   90e8fb28ff0657b17dfd92fe310dc00a94d7d97ddad8205efe5d37c5ff5ed3ba
 Salt:          b2304b5cfecdf5862e626a779c78b0b09ffe35be0c5a02f972a9b5e7b9a6a2f1
+Roothash sig:  avb_roothash_sig.system
 
 dm table:
-  0 131072 verity 1 /dev/mmcblk0p2 /dev/mmcblk0p2 4096 4096 16384 16384 sha256 ...
+  0 131072 verity 1 /dev/mmcblk0p2 /dev/mmcblk0p2 4096 4096 16384 16384 sha256 ... 1 root_hash_sig_key_desc avb_roothash_sig.system
 ```
+
+The `Roothash sig` field and the `root_hash_sig_key_desc` parameter only
+appear when a `roothash_sig` property is found in the vbmeta image (see
+[Root hash signature](#root-hash-signature) below).
 
 ### dm-table mode
 
@@ -92,6 +97,77 @@ avb_verify -d /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' '
 2. Calls `avb_vbmeta_image_verify()` from libavb to verify the signature
 3. Compares the embedded public key against the trusted `pubkey.bin`
 4. Extracts the hashtree descriptor and prints the **dm-verity table**
+5. If a `roothash_sig` property is found, loads the PKCS#7 signature
+   into the **session keyring** and appends `root_hash_sig_key_desc`
+   to the dm-verity table
+
+## Root hash signature
+
+In addition to AVB's vbmeta signature (which protects the root hash at
+the bootloader level), a separate PKCS#7 signature of the root hash can
+be embedded as a vbmeta property. When present, `avb_verify` loads it
+into the kernel session keyring via the `add_key()` syscall and appends
+`root_hash_sig_key_desc` to the dm-verity table. This enables the kernel
+to independently verify the root hash via
+`CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
+
+### Signing the root hash (build time)
+
+```bash
+# 1. Sign the image normally
+python3 avb/avbtool.py add_hashtree_footer \
+  --image system.img --partition_size 0 --partition_name system \
+  --algorithm SHA256_RSA4096 --key key.pem --hash_algorithm sha256 \
+  --do_not_generate_fec
+
+# 2. Extract the root hash
+ROOT_HASH=$(python3 avb/avbtool.py info_image --image system.img \
+  | sed -n 's/.*Root Digest:[[:space:]]*//p')
+echo -n "$ROOT_HASH" | xxd -r -p > roothash.bin
+
+# 3. Create a PKCS#7 signature of the root hash
+openssl smime -sign -nocerts -noattr -binary \
+  -in roothash.bin -inkey sig_key.pem -signer sig_cert.pem \
+  -outform der -out roothash.p7s
+
+# 4. Re-sign the image with the signature embedded as a property
+python3 avb/avbtool.py erase_footer --image system.img
+python3 avb/avbtool.py add_hashtree_footer \
+  --image system.img --partition_size 0 --partition_name system \
+  --algorithm SHA256_RSA4096 --key key.pem --hash_algorithm sha256 \
+  --do_not_generate_fec \
+  --prop_from_file roothash_sig:roothash.p7s
+```
+
+### Booting with root hash verification (target)
+
+```bash
+avb_verify -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system
+```
+
+`avb_verify` automatically:
+1. Verifies the vbmeta signature (AVB layer)
+2. Finds the `roothash_sig` property
+3. Loads it into the session keyring as `avb_roothash_sig.<partition>`
+4. Outputs the dm-verity table with `root_hash_sig_key_desc`
+5. The kernel verifies the PKCS#7 signature against its trusted keyring
+
+### Required kernel configuration
+
+```
+CONFIG_BLK_DEV_DM=y
+CONFIG_DM_VERITY=y
+CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG=y
+CONFIG_KEYS=y
+CONFIG_ASYMMETRIC_KEY_TYPE=y
+CONFIG_ASYMMETRIC_PUBLIC_KEY_SUBTYPE=y
+CONFIG_X509_CERTIFICATE_PARSER=y
+CONFIG_PKCS7_MESSAGE_PARSER=y
+CONFIG_SYSTEM_TRUSTED_KEYRING=y
+CONFIG_SYSTEM_TRUSTED_KEYS="/path/to/sig_cert.pem"
+CONFIG_CRYPTO_RSA=y
+CONFIG_CRYPTO_SHA256=y
+```
 
 ## Image layout
 
@@ -141,6 +217,35 @@ python3 avb/avbtool.py add_hashtree_footer \
   --key key.pem \
   --hash_algorithm sha256 \
   --do_not_generate_fec
+```
+
+To include a root hash signature, add these steps after the initial signing:
+
+```bash
+# Generate a signing key/cert for the root hash
+openssl req -x509 -newkey rsa:4096 -keyout sig_key.pem \
+  -out sig_cert.pem -days 365 -nodes -subj "/CN=roothash-signer"
+
+# Extract the root hash and sign it
+ROOT_HASH=$(python3 avb/avbtool.py info_image --image system.img \
+  | sed -n 's/.*Root Digest:[[:space:]]*//p')
+echo -n "$ROOT_HASH" | xxd -r -p > roothash.bin
+
+openssl smime -sign -nocerts -noattr -binary \
+  -in roothash.bin -inkey sig_key.pem -signer sig_cert.pem \
+  -outform der -out roothash.p7s
+
+# Re-sign the image with the signature embedded as a vbmeta property
+python3 avb/avbtool.py erase_footer --image system.img
+python3 avb/avbtool.py add_hashtree_footer \
+  --image system.img \
+  --partition_size 0 \
+  --partition_name system \
+  --algorithm SHA256_RSA4096 \
+  --key key.pem \
+  --hash_algorithm sha256 \
+  --do_not_generate_fec \
+  --prop_from_file roothash_sig:roothash.p7s
 ```
 
 Supported algorithms: `SHA256_RSA2048`, `SHA256_RSA4096`, `SHA256_RSA8192`,
