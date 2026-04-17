@@ -198,7 +198,7 @@ static const char *algorithm_name(uint32_t type)
 	}
 }
 
-/* Descriptor callback — find the first hashtree descriptor. */
+/* Descriptor callback to find the first hashtree descriptor. */
 static bool find_hashtree(const AvbDescriptor *desc, void *user_data)
 {
 	HashtreeInfo *info = (HashtreeInfo *)user_data;
@@ -222,7 +222,7 @@ static bool find_hashtree(const AvbDescriptor *desc, void *user_data)
 
 /*
  * Load the PKCS#7 root hash signature from a vbmeta property into the
- * session keyring.  Returns 1 if loaded, 0 if not present, -1 on error
+ * session keyring. Returns 1 if loaded, 0 if not present, -1 on error
  * (errno is set by the failed add_key syscall).
  */
 static int load_roothash_sig(const uint8_t *vbmeta, size_t vbmeta_size,
