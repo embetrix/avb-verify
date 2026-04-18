@@ -149,12 +149,14 @@ python3 avb/avbtool.py add_hashtree_footer \
   --do_not_generate_fec
 
 # 3. Extract the root hash and create its PKCS#7 signature
+#    Note: sign the hex string the kernel passes the root hash as hex
+#    to verify_pkcs7_signature and not as binary.
 ROOT_HASH=$(python3 avb/avbtool.py info_image --image system.img \
   | sed -n 's/.*Root Digest:[[:space:]]*//p')
-echo -n "$ROOT_HASH" | xxd -r -p > roothash.bin
+echo -n "$ROOT_HASH" > roothash.hex
 
 openssl smime -sign -nocerts -noattr -binary \
-  -in roothash.bin -inkey sig_key.pem -signer sig_cert.pem \
+  -in roothash.hex -inkey sig_key.pem -signer sig_cert.pem \
   -outform der -out roothash.p7s
 
 # 4. Re-sign the image with the PKCS#7 blob embedded as a vbmeta property
