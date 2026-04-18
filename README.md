@@ -20,7 +20,7 @@ It implements two layers of verification:
 
 - CMake >= 3.10
 - GCC or Clang
-- [libavb](https://android.googlesource.com/platform/external/avb/) (headers + static library)
+- [libavb](https://android.googlesource.com/platform/external/avb/) (submodule)
 - Python 3 + OpenSSL  for signing images with `avbtool` (development only)
 
 ## Build
@@ -185,11 +185,18 @@ CONFIG_CRYPTO_RSA=y
 CONFIG_CRYPTO_SHA256=y
 ```
 
-### ML-DSA support (Linux 7.x+)
+#### ML-DSA support (Linux 7.x+)
 
 ```
 CONFIG_CRYPTO_MLDSA=y
 CONFIG_PKCS7_WAIVE_AUTHATTRS_REJECTION_FOR_MLDSA=y
+```
+
+#### Kernel Hardening
+Add the option to your kernel cmdline to enforce root hash signature verification:
+
+```
+dm_verity.require_signatures=1
 ```
 
 ## Image layout
