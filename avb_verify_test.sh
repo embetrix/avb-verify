@@ -12,7 +12,7 @@ TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 # Check for required tools upfront to fail fast with a clear message
-for tool in openssl xxd keyctl mkfs.ext4 mkfs.erofs mksquashfs; do
+for tool in openssl keyctl mkfs.ext4 mkfs.erofs mksquashfs; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         echo "ERROR: required tool '$tool' not found" >&2
         exit 1
@@ -60,24 +60,32 @@ $AVBTOOL add_hashtree_footer \
 # and rebuild with the signature embedded as a property.
 ROOT_HASH=$($AVBTOOL info_image --image "$TEST_DIR/system.img" 2>/dev/null \
     | sed -n 's/.*Root Digest:[[:space:]]*//p')
+SALT=$($AVBTOOL info_image --image "$TEST_DIR/system.img" 2>/dev/null \
+    | sed -n 's/.*Salt:[[:space:]]*//p')
 if [ -z "$ROOT_HASH" ]; then
     echo "ERROR: failed to extract root hash from system.img" >&2
     exit 1
 fi
-echo -n "$ROOT_HASH" | xxd -r -p > "$TEST_DIR/roothash.bin"
 
-# Create a self-signed certificate for root hash signing
+# Sign the root hash as hex string — the kernel passes hex to verify_pkcs7_signature
+echo -n "$ROOT_HASH" > "$TEST_DIR/roothash.hex"
+
+# Create self-signed certificates for root hash signing
 openssl req -x509 -newkey rsa:4096 -keyout "$TEST_DIR/sig_key.pem" \
     -out "$TEST_DIR/sig_cert.pem" -days 365 -nodes \
     -subj "/CN=roothash-signer" 2>/dev/null
+openssl req -x509 -key "$TEST_DIR/wrong_key.pem" \
+    -out "$TEST_DIR/wrong_sig_cert.pem" -days 365 -nodes \
+    -subj "/CN=wrong-signer" 2>/dev/null
 
-# Create PKCS#7 detached signature of the root hash
+# Create PKCS#7 detached signature of the root hash hex string
 openssl smime -sign -nocerts -noattr -binary \
-    -in "$TEST_DIR/roothash.bin" -inkey "$TEST_DIR/sig_key.pem" \
+    -in "$TEST_DIR/roothash.hex" -inkey "$TEST_DIR/sig_key.pem" \
     -signer "$TEST_DIR/sig_cert.pem" \
     -outform der -out "$TEST_DIR/roothash.p7s"
 
-# Create a second image with the signature embedded as a property
+# Re-sign with the same salt (avbtool generates a random salt each call,
+# which would change the root hash and invalidate the signature)
 cp "$TEST_DIR/system.img" "$TEST_DIR/system_sig.img"
 $AVBTOOL erase_footer --image "$TEST_DIR/system_sig.img" 2>/dev/null
 $AVBTOOL add_hashtree_footer \
@@ -87,6 +95,7 @@ $AVBTOOL add_hashtree_footer \
     --algorithm SHA256_RSA4096 \
     --hash_algorithm sha256 \
     --key "$TEST_DIR/key.pem" \
+    --salt "$SALT" \
     --do_not_generate_fec \
     --prop_from_file roothash_sig:"$TEST_DIR/roothash.p7s"
 
@@ -294,6 +303,45 @@ if echo "$DM_NOSIG" | grep -q "root_hash_sig_key_desc"; then
     nok "dm-table without sig has no root_hash_sig_key_desc"
 else
     ok "dm-table without sig has no root_hash_sig_key_desc"
+fi
+
+# 27. PKCS#7 roothash sig: verify against root hash hex
+if openssl smime -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
+    -content "$TEST_DIR/roothash.hex" \
+    -nointern -certfile "$TEST_DIR/sig_cert.pem" \
+    -CAfile "$TEST_DIR/sig_cert.pem" \
+    -binary -noverify >/dev/null 2>&1; then
+    ok "roothash PKCS#7 sig verifies against root hash hex"
+else
+    nok "roothash PKCS#7 sig verifies against root hash hex"
+fi
+
+# 28. PKCS#7 roothash sig: verification fails with wrong root hash
+echo -n "0000000000000000000000000000000000000000000000000000000000000000" \
+    > "$TEST_DIR/wrong_roothash.hex"
+if openssl smime -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
+    -content "$TEST_DIR/wrong_roothash.hex" \
+    -nointern -certfile "$TEST_DIR/sig_cert.pem" \
+    -CAfile "$TEST_DIR/sig_cert.pem" \
+    -binary -noverify >/dev/null 2>&1; then
+    nok "roothash PKCS#7 sig rejects wrong root hash"
+else
+    ok "roothash PKCS#7 sig rejects wrong root hash"
+fi
+
+# 29. PKCS#7 roothash sig: verification fails with wrong signing key
+openssl smime -sign -nocerts -noattr -binary \
+    -in "$TEST_DIR/roothash.hex" -inkey "$TEST_DIR/wrong_key.pem" \
+    -signer "$TEST_DIR/wrong_sig_cert.pem" \
+    -outform der -out "$TEST_DIR/wrong_sig.p7s" 2>/dev/null
+if openssl smime -verify -inform DER -in "$TEST_DIR/wrong_sig.p7s" \
+    -content "$TEST_DIR/roothash.hex" \
+    -nointern -certfile "$TEST_DIR/sig_cert.pem" \
+    -CAfile "$TEST_DIR/sig_cert.pem" \
+    -binary -noverify >/dev/null 2>&1; then
+    nok "roothash PKCS#7 sig rejects wrong signing key"
+else
+    ok "roothash PKCS#7 sig rejects wrong signing key"
 fi
 
 echo ""
