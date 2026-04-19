@@ -2,9 +2,10 @@
 
 [![CI](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml/badge.svg)](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml)
 
-A C tool that verifies [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
-(AVB) signed images using `libavb` and extracts dm-verity parameters ready
-for use with `dmsetup`.
+A C tool that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
+(AVB) to embedded Linux systems. It verifies AVB-signed images using `libavb`
+and extracts dm-verity parameters ready for use with `dmsetup`, enabling
+secure boot and runtime integrity verification on embedded hardware.
 
 It implements two layers of verification:
 
