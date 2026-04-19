@@ -123,15 +123,23 @@ avb_verify -d /dev/mmcblk0p2 -k pubkey.bin \
 
 AVB's vbmeta signature is verified in userspace by `avb_verify` within the
 initramfs (which is itself verified by the bootloader at an earlier boot stage).
-However after Linux starts an attacker could tamper with `pubkey.bin` in
-memory before `avb_verify` reads it causing it to accept a crafted vbmeta and
-pass an attacker-controlled root hash to `dmsetup`.
+However, once Linux is running, the following combined attack is possible:
+
+> **Attack scenario**
+> 1. Attacker prepares a modified rootfs data in flash.
+> 2. Attacker overwrites `pubkey.bin` in memory with their own key.
+> 3. `avb_verify` reads the attacker's key, accepts a crafted vbmeta signed
+>    with it, and passes the attacker-controlled root hash to `dmsetup`.
+> 4. dm-verity validates the tampered rootfs against the attacker's root hash
+>    **secure boot is bypassed**.
 
 The `roothash_sig` feature closes this window by delegating root hash
 verification to the kernel: a PKCS#7 signature of the root hash is embedded
 as a vbmeta property and loaded into the session keyring so dm-verity verifies
 it atomically at device creation time, against the system's trusted keyring
-(`CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`).
+(`CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`). Even if an attacker substitutes
+`pubkey.bin` in memory, the kernel independently rejects any root hash that
+does not match the kernel-anchored trusted keyring.
 
 ### Signing workflow (build time)
 
@@ -143,7 +151,10 @@ Supported algorithms: `SHA256_RSA2048`, `SHA256_RSA4096`, `SHA256_RSA8192`,
 openssl req -x509 -newkey rsa:4096 -keyout sig_key.pem \
   -out sig_cert.pem -days 365 -nodes -subj "/CN=roothash-signer"
 
-# 2. Sign the image with avbtool
+# 2. Generate the dm-verity hashtree and sign with avbtool.
+#    add_hashtree_footer computes the Merkle tree over the filesystem blocks,
+#    appends it to the image, and creates a signed vbmeta struct containing
+#    the root hash, salt, and hashtree descriptor all in one step.
 python3 avb/avbtool.py add_hashtree_footer \
   --image system.img --partition_size 0 --partition_name system \
   --algorithm SHA256_RSA4096 --key key.pem --hash_algorithm sha256 \
