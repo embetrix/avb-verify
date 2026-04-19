@@ -148,22 +148,26 @@ python3 avb/avbtool.py add_hashtree_footer \
   --algorithm SHA256_RSA4096 --key key.pem --hash_algorithm sha256 \
   --do_not_generate_fec
 
-# 3. Extract the root hash and create its PKCS#7 signature
-#    Note: sign the hex string the kernel passes the root hash as hex
-#    to verify_pkcs7_signature and not as binary.
+# 3. Extract the root hash and salt, then create the PKCS#7 signature.
+#    The salt must be reused in step 4 because avbtool generates a random salt
+#    on each call, which would change the root hash and invalidate the signature.
+#    The kernel passes the root hash as a hex string to verify_pkcs7_signature.
 ROOT_HASH=$(python3 avb/avbtool.py info_image --image system.img \
   | sed -n 's/.*Root Digest:[[:space:]]*//p')
+SALT=$(python3 avb/avbtool.py info_image --image system.img \
+  | sed -n 's/.*Salt:[[:space:]]*//p')
 echo -n "$ROOT_HASH" > roothash.hex
 
 openssl smime -sign -nocerts -noattr -binary \
   -in roothash.hex -inkey sig_key.pem -signer sig_cert.pem \
   -outform der -out roothash.p7s
 
-# 4. Re-sign the image with the PKCS#7 blob embedded as a vbmeta property
+# 4. Re-sign the image with the same salt and the PKCS#7 blob embedded
 python3 avb/avbtool.py erase_footer --image system.img
 python3 avb/avbtool.py add_hashtree_footer \
   --image system.img --partition_size 0 --partition_name system \
   --algorithm SHA256_RSA4096 --key key.pem --hash_algorithm sha256 \
+  --salt $SALT \
   --do_not_generate_fec \
   --prop_from_file roothash_sig:roothash.p7s
 ```
