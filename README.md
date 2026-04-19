@@ -102,24 +102,7 @@ the key file, the OTP digest is immutable and cannot be altered at runtime:
 avb_verify -d /dev/mmcblk0p2 -k pubkey.bin \
            -x $(sha256sum pubkey.bin | cut -d' ' -f1)
 ```
-
-## How it works
-
-1. **Locate the AVB footer**  checks the last 64 bytes first (standard
-   location). If not found, detects the filesystem size from its superblock
-   (ext4, erofs, squashfs) and scans forward in 1 MiB chunks from the
-   filesystem boundary. This allows images signed with `--partition_size 0`
-   to work correctly when written to a larger block device.
-2. **Verify vbmeta signature**  calls `avb_vbmeta_image_verify()` from libavb.
-3. **Check public key**  compares the key embedded in vbmeta against the
-   trusted `pubkey.bin`, and optionally its SHA-256 digest.
-4. **Extract dm-verity parameters**  parses the hashtree descriptor and
-   builds the dm-verity table string.
-5. **Load root hash signature** *(if present)*  reads the `roothash_sig`
-   vbmeta property, loads the PKCS#7 blob into the session keyring via
-   `add_key(2)`, and appends `root_hash_sig_key_desc` to the dm-verity table.
-
-## Root hash signature
+### Root hash signature
 
 AVB's vbmeta signature is verified in userspace by `avb_verify` within the
 initramfs (which is itself verified by the bootloader at an earlier boot stage).
@@ -140,6 +123,22 @@ it atomically at device creation time, against the system's trusted keyring
 (`CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`). Even if an attacker substitutes
 `pubkey.bin` in memory, the kernel independently rejects any root hash that
 does not match the kernel-anchored trusted keyring.
+
+## How it works
+
+1. **Locate the AVB footer**  checks the last 64 bytes first (standard
+   location). If not found, detects the filesystem size from its superblock
+   (ext4, erofs, squashfs) and scans forward in 1 MiB chunks from the
+   filesystem boundary. This allows images signed with `--partition_size 0`
+   to work correctly when written to a larger block device.
+2. **Verify vbmeta signature**  calls `avb_vbmeta_image_verify()` from libavb.
+3. **Check public key**  compares the key embedded in vbmeta against the
+   trusted `pubkey.bin`, and optionally its SHA-256 digest.
+4. **Extract dm-verity parameters**  parses the hashtree descriptor and
+   builds the dm-verity table string.
+5. **Load root hash signature** *(if present)*  reads the `roothash_sig`
+   vbmeta property, loads the PKCS#7 blob into the session keyring via
+   `add_key(2)`, and appends `root_hash_sig_key_desc` to the dm-verity table.
 
 ### Signing workflow (build time)
 
