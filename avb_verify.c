@@ -242,7 +242,7 @@ static int load_roothash_sig(const uint8_t *vbmeta, size_t vbmeta_size,
 		 ROOTHASH_SIG_KEY_PREFIX,
 		 (int)ht->ht.partition_name_len, ht->partition_name);
 	key_id = syscall(__NR_add_key, "user", key_desc,
-			 sig_data, sig_size, KEY_SPEC_SESSION_KEYRING);
+			 sig_data, sig_size, KEY_SPEC_USER_SESSION_KEYRING);
 	if (key_id < 0)
 		return -1;
 

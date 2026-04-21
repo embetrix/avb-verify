@@ -291,7 +291,7 @@ echo "$SIG_OUT" | grep -q "Roothash sig:.*avb_roothash_sig.system" \
 # 25. system_sig: key is in session keyring after extraction
 # Run avb_verify explicitly here so this test does not depend on tests 23/24 having succeeded
 "$VERIFY" -d "$TEST_DIR/system_sig.img" -k "$TEST_DIR/pubkey.bin" >/dev/null 2>/dev/null || true
-if keyctl search @s user avb_roothash_sig.system >/dev/null 2>&1; then
+if keyctl search @us user avb_roothash_sig.system >/dev/null 2>&1; then
     ok "roothash sig key in session keyring"
 else
     nok "roothash sig key in session keyring"
