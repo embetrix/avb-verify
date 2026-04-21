@@ -262,3 +262,7 @@ signature loading.
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
+
+Alternative licensing (commercial, proprietary) are
+available contact [info@embetrix.com](mailto:info@embetrix.com)
+for your enquiries.
