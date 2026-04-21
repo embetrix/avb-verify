@@ -60,22 +60,25 @@ avb_verify -d /dev/mmcblk0p2 -k pubkey.bin
 ```
 
 ```
+Footer scan: 39.261 ms
+Roothash signature loaded into keyring: avb_roothash_sig.root (687 bytes)
 Verification:  OK
 Algorithm:     SHA256_RSA4096
 Rollback:      0
-Partition:     system
+Partition:     root
 Hash alg:      sha256
-Data blocks:   16384
+Data blocks:   77046
 Data block sz: 4096
 Hash block sz: 4096
-Hash offset:   67108864
-Root digest:   90e8fb28ff0657b17dfd92fe310dc00a94d7d97ddad8205efe5d37c5ff5ed3ba
-Salt:          b2304b5cfecdf5862e626a779c78b0b09ffe35be0c5a02f972a9b5e7b9a6a2f1
-Roothash sig:  avb_roothash_sig.system
+Hash offset:   315580416
+Root digest:   4aec6b1c1675f1a1bc2dd8394185e2fba4a230e8f754028e868b46e2f6cfc7a2
+Salt:          72807c3fa652f8e7f176b22b55cf8c711e720ab067d9f26f8dc72a831e291be6
+Roothash sig:  avb_roothash_sig.root
 
 dm table:
-  0 131072 verity 1 /dev/mmcblk0p2 /dev/mmcblk0p2 4096 4096 16384 16384 \
-  sha256 <root_digest> <salt> 1 root_hash_sig_key_desc avb_roothash_sig.system
+  0 616368 verity 1 /dev/sda6 /dev/sda6 4096 4096 77046 77046 sha256 \
+      4aec6b1c1675f1a1bc2dd8394185e2fba4a230e8f754028e868b46e2f6cfc7a2 72807c3fa652f8e7f176b22b55cf8c711e720ab067d9f26f8dc72a831e291be6 \
+      2 root_hash_sig_key_desc avb_roothash_sig.root
 ```
 
 `Roothash sig` and `root_hash_sig_key_desc` only appear when a `roothash_sig`
@@ -208,6 +211,7 @@ CONFIG_PKCS7_WAIVE_AUTHATTRS_REJECTION_FOR_MLDSA=y
 ```
 
 #### Kernel Hardening
+
 Add the option to your kernel cmdline to enforce root hash signature verification:
 
 ```
