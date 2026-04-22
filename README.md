@@ -15,7 +15,7 @@ It implements two layers of verification:
    SHA-256 digest, e.g. burned into OTP fuses).
 2. **Root hash layer** *(optional)* if the vbmeta image contains a
    `roothash_sig` property (a PKCS#7 signature of the root hash), loads it
-   into the kernel session keyring so dm-verity can independently verify the
+   into the user session keyring so dm-verity can independently verify the
    root hash via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 
 ## Prerequisites
