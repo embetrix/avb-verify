@@ -45,6 +45,12 @@ endif()
 
 install(TARGETS avb_verify RUNTIME DESTINATION bin)
 
+option(INSTALL_AVB_SIGN "Install avb_sign.py host signing script and avbtool" OFF)
+if(INSTALL_AVB_SIGN)
+    install(PROGRAMS avb_sign.py DESTINATION bin RENAME avb_sign)
+    install(PROGRAMS avb/avbtool.py DESTINATION bin RENAME avbtool)
+endif()
+
 enable_testing()
 add_test(NAME integration COMMAND ${CMAKE_SOURCE_DIR}/avb_verify_test.sh
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
