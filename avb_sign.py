@@ -65,9 +65,9 @@ def main():
     parser.add_argument("--output", default=None,
                         help="Output signed image (default: overwrite input)")
     parser.add_argument("--key", required=True,
-                        help="AVB signing key in PEM format")
+                        help="Signing key in PEM format (used for both vbmeta and PKCS#7 roothash signature)")
     parser.add_argument("--cert", required=True,
-                        help="X.509 certificate (PEM) for PKCS#7 root hash signature")
+                        help="Self-signed X.509 certificate (PEM) for PKCS#7 roothash signature")
     parser.add_argument("--partition-name", default="system",
                         help="Partition name embedded in vbmeta (default: system)")
     parser.add_argument("--algorithm", default="SHA256_RSA4096",
@@ -111,7 +111,7 @@ def main():
         roothash_file = os.path.join(tmpdir, "roothash.hex")
         p7s_file      = os.path.join(tmpdir, "roothash.p7s")
 
-        # Step 1: first-pass signing — avbtool picks a random salt
+        # Step 1: first-pass signing with avbtool picks a random salt
         print("[1/4] Adding hashtree footer (first pass)...")
         run(avb + [
             "add_hashtree_footer",

@@ -50,3 +50,8 @@ add_test(NAME integration COMMAND ${CMAKE_SOURCE_DIR}/avb_verify_test.sh
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 set_tests_properties(integration PROPERTIES
     ENVIRONMENT "avb_verify=$<TARGET_FILE:avb_verify>")
+
+add_test(NAME avb_sign COMMAND ${CMAKE_SOURCE_DIR}/avb_sign_test.sh
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(avb_sign PROPERTIES
+    ENVIRONMENT "avb_verify=$<TARGET_FILE:avb_verify>")
