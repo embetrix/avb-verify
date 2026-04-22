@@ -10,9 +10,9 @@ secure boot and runtime integrity verification on embedded hardware.
 
 It implements two layers of verification:
 
-1. **AVB layer**  validates the vbmeta PKCS#7 signature and checks the
-   embedded public key against a trusted reference key (or its SHA-256
-   digest, e.g. burned into OTP fuses).
+1. **AVB layer**  validates the vbmeta AVB raw signature (RSA/ML-DSA) and
+   checks the embedded public key against a trusted reference key (or its
+   SHA-256 digest, e.g. burned into OTP fuses).
 2. **Root hash layer** *(optional)* if the vbmeta image contains a
    `roothash_sig` property (a PKCS#7 signature of the root hash), loads it
    into the kernel session keyring so dm-verity can independently verify the
