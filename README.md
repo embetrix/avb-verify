@@ -3,10 +3,12 @@
 [![CI](https://github.com/embetrix/avb-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/embetrix/avb-utils/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-A C tool that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
-(AVB) to embedded Linux systems. It verifies AVB-signed images using `libavb`
-and extracts dm-verity parameters ready for use with `dmsetup`, enabling
-secure boot and runtime integrity verification on embedded hardware.
+A toolkit that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
+(AVB) to embedded Linux systems, covering the full trust chain: sign on the host
+with `avb_sign.py` and verify on the target with `avb_verify`. It verifies
+AVB-signed images using `libavb` extracts dm-verity parameters ready for use
+with `dmsetup` and embeds a PKCS#7 root hash signature for kernel-level
+integrity enforcement via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 
 It implements two layers of verification:
 
@@ -201,7 +203,7 @@ Use `--output` to write the signed image to a separate file and leave the input 
 ```bash
 python3 avb_sign.py \
   --image rootfs.ext4 \
-  --output rootfs-signed.ext4 \
+  --output rootfs.ext4.avbverity \
   --key key.pem \
   --cert sig_cert.pem \
   --partition-name rootfs \
