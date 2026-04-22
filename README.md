@@ -11,7 +11,7 @@ A toolkit that brings [Android Verified Boot](https://android.googlesource.com/p
 
 It verifies AVB-signed images using `libavb`, extracts dm-verity parameters ready for use
 with `dmsetup` and embeds a PKCS#7 root hash signature for kernel-level
-integrity enforcement via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
+integrity enforcement via: `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 
 It implements two layers of verification:
 
@@ -83,8 +83,8 @@ python3 avb_sign.py \
 python3 avb/avbtool.py extract_public_key --key key.pem --output pubkey.bin
 ```
 
-Deploy `pubkey.bin` and `sig_cert.pem` to the target (e.g. stored in a trusted
-location in the initramfs or burned into the firmware).
+Deploy `pubkey.bin` to the target (e.g. stored in the initramfs).
+`sig_cert.pem` is compiled into the kernel at build time via `CONFIG_SYSTEM_TRUSTED_KEYS`.
 
 ## Verification (target)
 
@@ -125,7 +125,7 @@ Salt:          72807c3fa652f8e7f176b22b55cf8c711e720ab067d9f26f8dc72a831e291be6
 Roothash sig:  avb_roothash_sig.root
 
 dm table:
-  0 616368 verity 1 /dev/sda6 /dev/sda6 4096 4096 77046 77046 sha256 \
+  0 616368 verity 1 /dev/mmcblk0p2 /dev/mmcblk0p2 4096 4096 77046 77046 sha256 \
       4aec6b1c1675f1a1bc2dd8394185e2fba4a230e8f754028e868b46e2f6cfc7a2 72807c3fa652f8e7f176b22b55cf8c711e720ab067d9f26f8dc72a831e291be6 \
       2 root_hash_sig_key_desc avb_roothash_sig.root
 ```
@@ -147,8 +147,8 @@ avb_verify -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system
 Use `-x` to additionally verify that the embedded public key matches a known
 SHA-256 digest, typically a value burned into OTP fuses at manufacturing time
 or retrieved from secure storage. This guards against TOCTOU attacks where a
-compromised `pubkey.bin` is substituted between verification and use — unlike
-the key file, the OTP digest is immutable and cannot be altered at runtime:
+compromised `pubkey.bin` is substituted between verification and use but unlike
+the key file the OTP digest is immutable and cannot be altered at runtime:
 
 ```bash
 avb_verify -d /dev/mmcblk0p2 -k pubkey.bin \
@@ -166,8 +166,8 @@ However, once Linux is running, the following combined attack is possible:
 > 2. Attacker overwrites `pubkey.bin` in memory with their own key.
 > 3. `avb_verify` reads the attacker's key, accepts a crafted vbmeta signed
 >    with it, and passes the attacker-controlled root hash to `dmsetup`.
-> 4. dm-verity validates the tampered rootfs against the attacker's root hash —
->    `secure boot is bypassed`.
+> 4. dm-verity validates the tampered rootfs against the attacker's root hash and
+>    secure boot is bypassed.
 
 The `roothash_sig` feature closes this window by delegating root hash
 verification to the kernel: a PKCS#7 signature of the root hash is embedded

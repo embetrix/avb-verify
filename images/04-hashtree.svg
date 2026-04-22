@@ -10,7 +10,7 @@
 <rect x="793" y="70" width="23" height="50" fill="#9a9a9a" stroke="#2a2a2a" stroke-width="1.2" rx="3"/>
 <rect x="816" y="70" width="23" height="50" fill="#7a3a5a" stroke="#2a2a2a" stroke-width="1.2" rx="3"/>
 <text x="827.5" y="98" font-size="10" font-weight="600" fill="#ffffff" text-anchor="middle" font-family="'Inter','Helvetica Neue',Arial,sans-serif">ftr</text>
-<text x="60" y="62" font-size="10" font-weight="400" fill="#666" text-anchor="start" font-family="'Inter','Helvetica Neue',Arial,sans-serif">not to scale — hashtree is ~0.8 % of image size in practice</text>
+<text x="60" y="62" font-size="10" font-weight="400" fill="#666" text-anchor="start" font-family="'Inter','Helvetica Neue',Arial,sans-serif">hashtree is ~0.8 % of image size in practice</text>
 <text x="60" y="138" font-size="10" font-weight="400" fill="#666" text-anchor="start" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,monospace">0</text>
 <text x="575" y="138" font-size="10" font-weight="400" fill="#666" text-anchor="middle" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,monospace">original_image_size</text>
 <text x="715" y="138" font-size="10" font-weight="400" fill="#666" text-anchor="middle" font-family="'JetBrains Mono','SF Mono',Menlo,Consolas,monospace">vbmeta_offset</text>
