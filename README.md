@@ -1,6 +1,7 @@
 # avb-verify
 
 [![CI](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml/badge.svg)](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 A C tool that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
 (AVB) to embedded Linux systems. It verifies AVB-signed images using `libavb`
