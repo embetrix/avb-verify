@@ -30,6 +30,8 @@ It implements two layers of verification:
 - [libavb](https://android.googlesource.com/platform/external/avb/) (submodule)
 - Python 3 + OpenSSL  for signing images with `avbtool` (development only)
 
+> **Note:** `avb_verify` is lightweight: no external crypto library is required on the target and all cryptographic operations are handled by libavb's own built-in implementation. On the host side, `avb_sign.py` (via `avbtool`) handles dm-verity hash tree generation and vbmeta signing directly, so cryptsetup or any verity userspace tooling is not required.
+
 ## Build
 
 ```bash
