@@ -10,7 +10,7 @@ A toolkit that brings [Android Verified Boot](https://android.googlesource.com/p
 * Verify on the target with [avb_verify](avb_verify.c)
 
 It verifies AVB-signed images using `libavb`, extracts dm-verity parameters ready for use
-with `dmsetup`, and embeds a PKCS#7 root hash signature for kernel-level
+with `dmsetup` and embeds a PKCS#7 root hash signature for kernel-level
 integrity enforcement via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 
 It implements two layers of verification:
