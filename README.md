@@ -4,18 +4,19 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 A toolkit that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
-(AVB) to embedded Linux systems, covering the full trust chain: **sign on the host**
-with `avb_sign.py` and **verify on the target** with `avb_verify`. It verifies
-AVB-signed images using `libavb`, extracts dm-verity parameters ready for use
+(AVB) to embedded Linux systems, covering the full trust chain: `sign on the host`
+with `avb_sign.py` and `verify on the target` with `avb_verify`.
+
+It verifies AVB-signed images using `libavb`, extracts dm-verity parameters ready for use
 with `dmsetup`, and embeds a PKCS#7 root hash signature for kernel-level
 integrity enforcement via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 
 It implements two layers of verification:
 
-1. **AVB layer**  validates the vbmeta AVB raw signature (RSA/ML-DSA) and
+1. `AVB layer`  validates the vbmeta AVB raw signature (RSA/ML-DSA) and
    checks the embedded public key against a trusted reference key (or its
    SHA-256 digest, e.g. burned into OTP fuses).
-2. **Root hash layer** *(optional)* if the vbmeta image contains a
+2. `Root hash layer` *(optional)* if the vbmeta image contains a
    `roothash_sig` property (a PKCS#7 signature of the root hash), loads it
    into the user session keyring so dm-verity can independently verify the
    root hash via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
@@ -158,13 +159,13 @@ AVB's vbmeta signature is verified in userspace by `avb_verify` within the
 initramfs (which is itself verified by the bootloader at an earlier boot stage).
 However, once Linux is running, the following combined attack is possible:
 
-> **Attack scenario**
+> `Attack scenario`
 > 1. Attacker prepares a modified rootfs data in flash.
 > 2. Attacker overwrites `pubkey.bin` in memory with their own key.
 > 3. `avb_verify` reads the attacker's key, accepts a crafted vbmeta signed
 >    with it, and passes the attacker-controlled root hash to `dmsetup`.
 > 4. dm-verity validates the tampered rootfs against the attacker's root hash —
->    **secure boot is bypassed**.
+>    `secure boot is bypassed`.
 
 The `roothash_sig` feature closes this window by delegating root hash
 verification to the kernel: a PKCS#7 signature of the root hash is embedded
@@ -202,17 +203,17 @@ The full on-disk hashtree layout: leaf hashes covering data blocks, intermediate
 
 ## How it works
 
-1. **Locate the AVB footer**  checks the last 64 bytes first (standard
+1. `Locate the AVB footer`  checks the last 64 bytes first (standard
    location). If not found, detects the filesystem size from its superblock
    (ext4, erofs, squashfs) and scans forward in 1 MiB chunks from the
    filesystem boundary. This allows images signed with `--partition_size 0`
    to work correctly when written to a larger block device.
-2. **Verify vbmeta signature**  calls `avb_vbmeta_image_verify()` from libavb.
-3. **Check public key**  compares the key embedded in vbmeta against the
+2. `Verify vbmeta signature`  calls `avb_vbmeta_image_verify()` from libavb.
+3. `Check public key`  compares the key embedded in vbmeta against the
    trusted `pubkey.bin`, and optionally its SHA-256 digest.
-4. **Extract dm-verity parameters**  parses the hashtree descriptor and
+4. `Extract dm-verity parameters`  parses the hashtree descriptor and
    builds the dm-verity table string.
-5. **Load root hash signature** *(if present)*  reads the `roothash_sig`
+5. `Load root hash signature` *(if present)*  reads the `roothash_sig`
    vbmeta property, loads the PKCS#7 blob into the session keyring via
    `add_key(2)`, and appends `root_hash_sig_key_desc` to the dm-verity table.
 
