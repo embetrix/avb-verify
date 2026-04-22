@@ -122,12 +122,12 @@ else
     nok "custom --partition-name"
 fi
 
-# 9. Custom --algorithm is used
+# 9. Custom --algorithm is used (SHA512_RSA4096 matches the 4096-bit test key)
 cp "$TEST_DIR/rootfs.ext4" "$TEST_DIR/algo.ext4"
 if $SIGN --image "$TEST_DIR/algo.ext4" \
          --key "$TEST_DIR/key.pem" \
          --cert "$TEST_DIR/sig_cert.pem" \
-         --algorithm SHA256_RSA2048 >/dev/null 2>&1; then
+         --algorithm SHA512_RSA4096 >/dev/null 2>&1; then
     ok "custom --algorithm accepted"
 else
     nok "custom --algorithm accepted"
