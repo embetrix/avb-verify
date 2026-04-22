@@ -1,6 +1,6 @@
-# avb-verify
+# avb-utils
 
-[![CI](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml/badge.svg)](https://github.com/embetrix/avb-verify/actions/workflows/ci.yml)
+[![CI](https://github.com/embetrix/avb-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/embetrix/avb-utils/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 A C tool that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
@@ -170,47 +170,42 @@ The full on-disk hashtree layout: leaf hashes covering data blocks, intermediate
    vbmeta property, loads the PKCS#7 blob into the session keyring via
    `add_key(2)`, and appends `root_hash_sig_key_desc` to the dm-verity table.
 
-### Signing workflow (build time)
+### Signing workflow
 
 Supported algorithms: `SHA256_RSA2048`, `SHA256_RSA4096`, `SHA256_RSA8192`,
 `SHA512_RSA2048`, `SHA512_RSA4096`, `SHA512_RSA8192`, `MLDSA65`, `MLDSA87`.
 
+#### 1. Create the AVB signing key and roothash certificate
+
 ```bash
-# 1. Create the signing key and self-signed certificate
-openssl req -x509 -newkey rsa:4096 -keyout sig_key.pem \
-  -out sig_cert.pem -days 365 -nodes -subj "/CN=roothash-signer"
+# Generate signing key
+openssl genrsa -out key.pem 4096
 
-# 2. Generate the dm-verity hashtree and sign with avbtool.
-#    add_hashtree_footer computes the Merkle tree over the filesystem blocks,
-#    appends it to the image, and creates a signed vbmeta struct containing
-#    the root hash, salt, and hashtree descriptor all in one step.
-python3 avb/avbtool.py add_hashtree_footer \
-  --image system.img --partition_size 0 --partition_name system \
-  --algorithm SHA256_RSA4096 --key key.pem --hash_algorithm sha256 \
-  --do_not_generate_fec
+# Self-signed certificate from the same key (used for PKCS#7 roothash_sig)
+openssl req -x509 -key key.pem -out sig_cert.pem -days 3650 -subj "/CN=avb-signer"
+```
 
-# 3. Extract the root hash and salt, then create the PKCS#7 signature.
-#    The salt must be reused in step 4 because avbtool generates a random salt
-#    on each call, which would change the root hash and invalidate the signature.
-#    The kernel passes the root hash as a hex string to verify_pkcs7_signature.
-ROOT_HASH=$(python3 avb/avbtool.py info_image --image system.img \
-  | sed -n 's/.*Root Digest:[[:space:]]*//p')
-SALT=$(python3 avb/avbtool.py info_image --image system.img \
-  | sed -n 's/.*Salt:[[:space:]]*//p')
-echo -n "$ROOT_HASH" > roothash.hex
+#### 2. Sign the image
 
-openssl smime -sign -nocerts -noattr -binary \
-  -in roothash.hex -inkey sig_key.pem -signer sig_cert.pem \
-  -outform der -out roothash.p7s
+```bash
+python3 avb_sign.py \
+  --image rootfs.ext4 \
+  --key key.pem \
+  --cert sig_cert.pem \
+  --partition-name rootfs \
+  --algorithm SHA256_RSA4096
+```
 
-# 4. Re-sign the image with the same salt and the PKCS#7 blob embedded
-python3 avb/avbtool.py erase_footer --image system.img
-python3 avb/avbtool.py add_hashtree_footer \
-  --image system.img --partition_size 0 --partition_name system \
-  --algorithm SHA256_RSA4096 --key key.pem --hash_algorithm sha256 \
-  --salt $SALT \
-  --do_not_generate_fec \
-  --prop_from_file roothash_sig:roothash.p7s
+Use `--output` to write the signed image to a separate file and leave the input untouched:
+
+```bash
+python3 avb_sign.py \
+  --image rootfs.ext4 \
+  --output rootfs-signed.ext4 \
+  --key key.pem \
+  --cert sig_cert.pem \
+  --partition-name rootfs \
+  --algorithm SHA256_RSA4096
 ```
 
 ### Required kernel configuration
