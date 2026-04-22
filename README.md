@@ -4,10 +4,10 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 A toolkit that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
-(AVB) to embedded Linux systems, covering the full trust chain: sign on the host
-with `avb_sign.py` and verify on the target with `avb_verify`. It verifies
-AVB-signed images using `libavb` extracts dm-verity parameters ready for use
-with `dmsetup` and embeds a PKCS#7 root hash signature for kernel-level
+(AVB) to embedded Linux systems, covering the full trust chain: **sign on the host**
+with `avb_sign.py` and **verify on the target** with `avb_verify`. It verifies
+AVB-signed images using `libavb`, extracts dm-verity parameters ready for use
+with `dmsetup`, and embeds a PKCS#7 root hash signature for kernel-level
 integrity enforcement via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 
 It implements two layers of verification:
@@ -34,7 +34,56 @@ cmake -B build
 cmake --build build
 ```
 
-## Usage
+## Signing (host)
+
+Supported algorithms: `SHA256_RSA2048`, `SHA256_RSA4096`, `SHA256_RSA8192`,
+`SHA512_RSA2048`, `SHA512_RSA4096`, `SHA512_RSA8192`, `MLDSA65`, `MLDSA87`.
+
+### 1. Create the signing key and certificate
+
+```bash
+# Generate signing key
+openssl genrsa -out key.pem 4096
+
+# Self-signed certificate from the same key (used for PKCS#7 roothash_sig)
+openssl req -x509 -key key.pem -out sig_cert.pem -days 3650 -subj "/CN=avb-signer"
+```
+
+### 2. Sign the image
+
+```bash
+python3 avb_sign.py \
+  --image rootfs.ext4 \
+  --key key.pem \
+  --cert sig_cert.pem \
+  --partition-name rootfs \
+  --algorithm SHA256_RSA4096
+```
+
+Use `--output` to write the signed image to a separate file and leave the input untouched:
+
+```bash
+python3 avb_sign.py \
+  --image rootfs.ext4 \
+  --output rootfs.ext4.avbverity \
+  --key key.pem \
+  --cert sig_cert.pem \
+  --partition-name rootfs \
+  --algorithm SHA256_RSA4096
+```
+
+### 3. Extract the public key for the target
+
+`avb_verify` requires the public key in AVB's serialized format (not PEM):
+
+```bash
+python3 avb/avbtool.py extract_public_key --key key.pem --output pubkey.bin
+```
+
+Deploy `pubkey.bin` and `sig_cert.pem` to the target (e.g. stored in a trusted
+location in the initramfs or burned into the firmware).
+
+## Verification (target)
 
 ```
 avb_verify -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-h]
@@ -47,12 +96,6 @@ avb_verify -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-h]
 | `-x, --pubkey-digest <hex>` | Also verify that the key's SHA-256 matches this digest |
 | `-t, --dm-table` | Print only the raw dm-verity table line |
 | `-h, --help` | Show help |
-
-The public key must be in AVB's serialized format (not PEM). Extract it with:
-
-```bash
-python3 avb/avbtool.py extract_public_key --key key.pem --output pubkey.bin
-```
 
 ### Default output
 
@@ -101,13 +144,14 @@ avb_verify -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system
 Use `-x` to additionally verify that the embedded public key matches a known
 SHA-256 digest, typically a value burned into OTP fuses at manufacturing time
 or retrieved from secure storage. This guards against TOCTOU attacks where a
-compromised `pubkey.bin` is substituted between verification and use unlike
+compromised `pubkey.bin` is substituted between verification and use — unlike
 the key file, the OTP digest is immutable and cannot be altered at runtime:
 
 ```bash
 avb_verify -d /dev/mmcblk0p2 -k pubkey.bin \
            -x $(sha256sum pubkey.bin | cut -d' ' -f1)
 ```
+
 ### Root hash signature
 
 AVB's vbmeta signature is verified in userspace by `avb_verify` within the
@@ -119,7 +163,7 @@ However, once Linux is running, the following combined attack is possible:
 > 2. Attacker overwrites `pubkey.bin` in memory with their own key.
 > 3. `avb_verify` reads the attacker's key, accepts a crafted vbmeta signed
 >    with it, and passes the attacker-controlled root hash to `dmsetup`.
-> 4. dm-verity validates the tampered rootfs against the attacker's root hash
+> 4. dm-verity validates the tampered rootfs against the attacker's root hash —
 >    **secure boot is bypassed**.
 
 The `roothash_sig` feature closes this window by delegating root hash
@@ -172,45 +216,7 @@ The full on-disk hashtree layout: leaf hashes covering data blocks, intermediate
    vbmeta property, loads the PKCS#7 blob into the session keyring via
    `add_key(2)`, and appends `root_hash_sig_key_desc` to the dm-verity table.
 
-### Signing workflow
-
-Supported algorithms: `SHA256_RSA2048`, `SHA256_RSA4096`, `SHA256_RSA8192`,
-`SHA512_RSA2048`, `SHA512_RSA4096`, `SHA512_RSA8192`, `MLDSA65`, `MLDSA87`.
-
-#### 1. Create the AVB signing key and roothash certificate
-
-```bash
-# Generate signing key
-openssl genrsa -out key.pem 4096
-
-# Self-signed certificate from the same key (used for PKCS#7 roothash_sig)
-openssl req -x509 -key key.pem -out sig_cert.pem -days 3650 -subj "/CN=avb-signer"
-```
-
-#### 2. Sign the image
-
-```bash
-python3 avb_sign.py \
-  --image rootfs.ext4 \
-  --key key.pem \
-  --cert sig_cert.pem \
-  --partition-name rootfs \
-  --algorithm SHA256_RSA4096
-```
-
-Use `--output` to write the signed image to a separate file and leave the input untouched:
-
-```bash
-python3 avb_sign.py \
-  --image rootfs.ext4 \
-  --output rootfs.ext4.avbverity \
-  --key key.pem \
-  --cert sig_cert.pem \
-  --partition-name rootfs \
-  --algorithm SHA256_RSA4096
-```
-
-### Required kernel configuration
+## Required kernel configuration
 
 ```
 CONFIG_BLK_DEV_DM=y
@@ -227,14 +233,14 @@ CONFIG_CRYPTO_RSA=y
 CONFIG_CRYPTO_SHA256=y
 ```
 
-#### ML-DSA support (Linux 7.x+)
+### ML-DSA support (Linux 7.x+)
 
 ```
 CONFIG_CRYPTO_MLDSA=y
 CONFIG_PKCS7_WAIVE_AUTHATTRS_REJECTION_FOR_MLDSA=y
 ```
 
-#### Kernel Hardening
+### Kernel Hardening
 
 Add the option to your kernel cmdline to enforce root hash signature verification:
 
