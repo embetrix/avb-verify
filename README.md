@@ -128,6 +128,32 @@ it atomically at device creation time, against the system's trusted keyring
 `pubkey.bin` in memory, the kernel independently rejects any root hash that
 does not match the kernel-anchored trusted keyring.
 
+## Architecture
+
+### Partition Layout
+
+The verified partition is split into a data region and an appended AVB footer that points to the vbmeta struct and hashtree.
+
+![Partition Layout](images/01-partition-layout.svg)
+
+### VBMeta Structure
+
+The vbmeta block holds the hashtree descriptor (root hash, salt, tree layout) and a property descriptor (`roothash_sig`) along with the public key and signature over the whole structure.
+
+![VBMeta Structure](images/02-vbmeta.svg)
+
+### Merkle Tree
+
+Integrity is anchored by a Merkle tree built over fixed-size data blocks. Only the root hash needs to be trusted and any tampered block causes a verification failure up the tree.
+
+![Merkle Tree](images/03-merkle-tree.svg)
+
+### Hash Tree
+
+The full on-disk hashtree layout: leaf hashes covering data blocks, intermediate levels and the root hash stored in the vbmeta descriptor.
+
+![Hash Tree](images/04-hashtree.svg)
+
 ## How it works
 
 1. **Locate the AVB footer**  checks the last 64 bytes first (standard
