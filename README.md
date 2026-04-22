@@ -6,7 +6,7 @@
 A toolkit that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
 (AVB) to embedded Linux systems, covering the full trust chain:
 
-* Sign on the host with [avb_sign.py](avb_sign.py)
+* Append hash tree, sign and attach vbmeta on the host with [avb_sign.py](avb_sign.py)
 * Verify on the target with [avb_verify](avb_verify.c)
 
 It verifies AVB-signed images using `libavb`, extracts dm-verity parameters ready for use
@@ -52,7 +52,7 @@ openssl genrsa -out key.pem 4096
 openssl req -x509 -key key.pem -out sig_cert.pem -days 3650 -subj "/CN=avb-signer"
 ```
 
-### 2. Sign the image
+### 2. Append hash tree, sign and attach vbmeta
 
 ```bash
 python3 avb_sign.py \
