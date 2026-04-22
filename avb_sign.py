@@ -3,7 +3,7 @@
 # (C) Copyright 2026
 # Embetrix Embedded Systems Solutions, ayoub.zaki@embetrix.com
 """
-avb_sign.py - Sign an image with AVB and embed a PKCS#7 root hash signature.
+avb_sign.py - Append hash tree, sign and attach vbmeta with an embedded PKCS#7 root hash signature.
 
 Automates the four-step signing workflow:
   1. First-pass avbtool add_hashtree_footer (generates random salt)
