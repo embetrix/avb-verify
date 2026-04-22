@@ -11,7 +11,7 @@ A toolkit that brings [Android Verified Boot](https://android.googlesource.com/p
 
 It verifies AVB-signed images using `libavb`, extracts dm-verity parameters ready for use
 with `dmsetup` and embeds a PKCS#7 root hash signature for kernel-level
-integrity enforcement via `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
+integrity enforcement via: `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 
 It implements two layers of verification:
 
@@ -83,8 +83,8 @@ python3 avb_sign.py \
 python3 avb/avbtool.py extract_public_key --key key.pem --output pubkey.bin
 ```
 
-Deploy `pubkey.bin` and `sig_cert.pem` to the target (e.g. stored in a trusted
-location in the initramfs or burned into the firmware).
+Deploy `pubkey.bin` to the target (e.g. stored in the initramfs).
+`sig_cert.pem` is compiled into the kernel at build time via `CONFIG_SYSTEM_TRUSTED_KEYS`.
 
 ## Verification (target)
 
