@@ -15,10 +15,20 @@ jobs:
           submodules: recursive
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake e2fsprogs erofs-utils squashfs-tools python3 openssl
+        run: sudo apt-get update && sudo apt-get install -y cmake clang clang-tools valgrind e2fsprogs erofs-utils squashfs-tools python3 openssl
 
       - name: Build
-        run: cmake -B build && cmake --build build
+        run: cmake -B build -DCMAKE_C_COMPILER=clang && cmake --build build
+
+      - name: Static analysis
+        run: |
+          cmake -B build-analyze -DCMAKE_C_COMPILER=clang
+          scan-build --status-bugs cmake --build build-analyze
 
       - name: Test
         run: ctest --test-dir build -V
+
+      - name: Valgrind memcheck
+        run: |
+          VALGRIND="valgrind --error-exitcode=1 --leak-check=full --errors-for-leak-kinds=all" \
+            bash avb_verify_test.sh

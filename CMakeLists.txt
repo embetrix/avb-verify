@@ -8,7 +8,20 @@ if(PKG_CONFIG_FOUND)
 endif()
 
 add_executable(avb_verify avb_verify.c)
-target_compile_options(avb_verify PRIVATE -Wall -Wextra)
+target_compile_options(avb_verify PRIVATE
+    -Wall -Wextra
+    -D_FORTIFY_SOURCE=2
+    -fstack-protector-strong
+    -fPIE
+    -Wformat -Wformat-security
+    -Werror=format-security
+)
+target_link_options(avb_verify PRIVATE
+    -pie
+    -Wl,-z,relro
+    -Wl,-z,now
+    -Wl,-z,noexecstack
+)
 
 if(LIBAVB_FOUND)
     message(STATUS "Using system libavb: ${LIBAVB_LINK_LIBRARIES}")
