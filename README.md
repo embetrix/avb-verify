@@ -299,3 +299,12 @@ This project is licensed under the [GNU General Public License v3.0](LICENSE).
 Alternative licensing (commercial, proprietary) are
 available contact [info@embetrix.com](mailto:info@embetrix.com)
 for your enquiries.
+
+### Third-party licenses
+
+This project includes [libavb](https://android.googlesource.com/platform/external/avb/)
+from the Android Open Source Project used as a git submodule under `avb`.
+
+libavb is licensed under a permissive MIT-style license, the Apache License 2.0,
+and the BSD 3-Clause License depending on the source file:
+see the [upstream LICENSE](https://android.googlesource.com/platform/external/avb/+/refs/heads/master/LICENSE) for the full terms.
