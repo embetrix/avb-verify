@@ -4,7 +4,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 A toolkit that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
-(AVB) to embedded Linux systems, covering the full trust chain:
+(AVB) to embedded Linux systems, extending the chain of trust:
 
 * Append hash tree, sign and attach vbmeta on the host with [avb_sign.py](avb_sign.py)
 * Verify on the target with [avb_verify](avb_verify.c)
