@@ -87,7 +87,6 @@ use U-Boot with a locked/signed environment).
 
 | Measure | How to enable |
 |---|---|
-| Verify pubkey by digest (OTP) | `-x <sha256>` flag |
 | Kernel-side root hash verification | `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG=y` |
 | Enforce root hash signature | `dm_verity.require_signatures=1` on kernel cmdline |
 | Post-quantum signing | Use `MLDSA65` or `MLDSA87` algorithm (Linux 7.x+) |

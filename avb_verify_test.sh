@@ -253,46 +253,18 @@ else
     nok "squashfs footer scanning on padded image"
 fi
 
-# 18. -x: verification succeeds with correct digest
-DIGEST=$(sha256sum "$TEST_DIR/pubkey.bin" | cut -d' ' -f1)
-if verify -d "$TEST_DIR/system.img" -k "$TEST_DIR/pubkey.bin" -x "$DIGEST" 2>/dev/null | grep -q "Verification:  OK"; then
-    ok "-x correct digest"
-else
-    nok "-x correct digest"
-fi
-
-# 19. -x: wrong digest is rejected
-WRONG_DIGEST=$(sha256sum "$TEST_DIR/wrong_pubkey.bin" | cut -d' ' -f1)
-verify -d "$TEST_DIR/system.img" -k "$TEST_DIR/pubkey.bin" -x "$WRONG_DIGEST" >/dev/null 2>&1 \
-    && nok "-x wrong digest rejected" || ok "-x wrong digest rejected"
-
-# 20. -x: invalid hex is rejected
-verify -d "$TEST_DIR/system.img" -k "$TEST_DIR/pubkey.bin" -x "not_hex" >/dev/null 2>&1 \
-    && nok "-x invalid hex rejected" || ok "-x invalid hex rejected"
-
-# 21. -x without -k is rejected
-verify -d "$TEST_DIR/system.img" -x "$DIGEST" >/dev/null 2>&1 \
-    && nok "-x without -k rejected" || ok "-x without -k rejected"
-
-# 22. -x with --dm-table
-if verify -t -d "$TEST_DIR/system.img" -k "$TEST_DIR/pubkey.bin" -x "$DIGEST" 2>/dev/null | grep -q "^0 .* verity "; then
-    ok "-x with --dm-table"
-else
-    nok "-x with --dm-table"
-fi
-
-# 23. system_sig: dm-table includes root_hash_sig_key_desc
+# 18. system_sig: dm-table includes root_hash_sig_key_desc
 DM_SIG_OUT=$(verify -t -d "$TEST_DIR/system_sig.img" -k "$TEST_DIR/pubkey.bin" 2>/dev/null)
 echo "$DM_SIG_OUT" | grep -q "root_hash_sig_key_desc avb_roothash_sig.system" \
     && ok "dm-table has root_hash_sig_key_desc" || nok "dm-table has root_hash_sig_key_desc"
 
-# 24. system_sig: verbose output shows Roothash sig field
+# 19. system_sig: verbose output shows Roothash sig field
 SIG_OUT=$(verify -d "$TEST_DIR/system_sig.img" -k "$TEST_DIR/pubkey.bin" 2>/dev/null)
 echo "$SIG_OUT" | grep -q "Roothash sig:.*avb_roothash_sig.system" \
     && ok "verbose output has Roothash sig" || nok "verbose output has Roothash sig"
 
-# 25. system_sig: key is in session keyring after extraction
-# Run avb_verify explicitly here so this test does not depend on tests 23/24 having succeeded
+# 20. system_sig: key is in session keyring after extraction
+# Run avb_verify explicitly here so this test does not depend on tests 18/19 having succeeded
 verify -d "$TEST_DIR/system_sig.img" -k "$TEST_DIR/pubkey.bin" >/dev/null 2>/dev/null || true
 if keyctl search @us user avb_roothash_sig.system >/dev/null 2>&1; then
     ok "roothash sig key in session keyring"
@@ -300,7 +272,7 @@ else
     nok "roothash sig key in session keyring"
 fi
 
-# 26. system without sig: dm-table does NOT have root_hash_sig_key_desc
+# 21. system without sig: dm-table does NOT have root_hash_sig_key_desc
 DM_NOSIG=$(verify -t -d "$TEST_DIR/system.img" -k "$TEST_DIR/pubkey.bin" 2>/dev/null)
 if echo "$DM_NOSIG" | grep -q "root_hash_sig_key_desc"; then
     nok "dm-table without sig has no root_hash_sig_key_desc"
@@ -308,7 +280,7 @@ else
     ok "dm-table without sig has no root_hash_sig_key_desc"
 fi
 
-# 27. PKCS#7 roothash sig: verify against root hash hex
+# 22. PKCS#7 roothash sig: verify against root hash hex
 if openssl smime -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
     -content "$TEST_DIR/roothash.hex" \
     -nointern -certfile "$TEST_DIR/sig_cert.pem" \
@@ -319,7 +291,7 @@ else
     nok "roothash PKCS#7 sig verifies against root hash hex"
 fi
 
-# 28. PKCS#7 roothash sig: verification fails with wrong root hash
+# 23. PKCS#7 roothash sig: verification fails with wrong root hash
 echo -n "0000000000000000000000000000000000000000000000000000000000000000" \
     > "$TEST_DIR/wrong_roothash.hex"
 if openssl smime -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
@@ -332,7 +304,7 @@ else
     ok "roothash PKCS#7 sig rejects wrong root hash"
 fi
 
-# 29. PKCS#7 roothash sig: verification fails with wrong signing key
+# 24. PKCS#7 roothash sig: verification fails with wrong signing key
 openssl smime -sign -nocerts -noattr -binary \
     -in "$TEST_DIR/roothash.hex" -inkey "$TEST_DIR/wrong_key.pem" \
     -signer "$TEST_DIR/wrong_sig_cert.pem" \

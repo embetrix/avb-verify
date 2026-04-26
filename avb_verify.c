@@ -40,7 +40,6 @@
 #include <linux/keyctl.h>
 
 #include <libavb/libavb.h>
-#include <libavb/avb_sha.h>
 
 #define FAIL(...) \
 	do { fprintf(stderr, __VA_ARGS__); ret = 1; goto out; } while (0)
@@ -282,7 +281,6 @@ static void usage(const char *prog)
 		"Options:\n"
 		"  -d, --device <path>             Image file or block device (required)\n"
 		"  -k, --pubkey <path>             AVB public key file (required)\n"
-		"  -x, --pubkey-digest <hex>       Verify key matches this SHA-256 digest\n"
 		"  -t, --dm-table                  Print only the raw dm table line\n"
 		"  -h, --help                      Show this help\n\n"
 		"If a 'roothash_sig' property (PKCS#7) is found in the vbmeta image,\n"
@@ -290,16 +288,14 @@ static void usage(const char *prog)
 		"is appended to the dm-verity table for kernel-level verification.\n\n"
 		"Examples:\n"
 		"  %s -d /dev/mmcblk0p2 -k pubkey.bin\n"
-		"  %s -d /dev/mmcblk0p2 -k pubkey.bin -x $(sha256sum pubkey.bin | cut -d' ' -f1)\n"
 		"  %s -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system\n",
-		prog, prog, prog, prog);
+		prog, prog, prog);
 }
 
 int main(int argc, char *argv[])
 {
 	static const struct option long_opts[] = {
 		{ "pubkey",        required_argument, NULL, 'k' },
-		{ "pubkey-digest", required_argument, NULL, 'x' },
 		{ "device",        required_argument, NULL, 'd' },
 		{ "dm-table",      no_argument,       NULL, 't' },
 		{ "help",          no_argument,       NULL, 'h' },
@@ -308,11 +304,8 @@ int main(int argc, char *argv[])
 	bool dm_table_only = false;
 	const char *device_path = NULL;
 	const char *pubkey_path = NULL;
-	const char *pubkey_digest_hex = NULL;
 	int ret = 0;
 	int opt;
-	uint8_t expected_digest[AVB_SHA256_DIGEST_SIZE];
-	bool check_digest;
 	uint8_t *trusted_key = NULL;
 	size_t trusted_key_size = 0;
 	uint8_t *vbmeta = NULL;
@@ -336,11 +329,10 @@ int main(int argc, char *argv[])
 
 	memset(sig_key_desc, 0, sizeof(sig_key_desc));
 
-	while ((opt = getopt_long(argc, argv, "d:k:x:th", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "d:k:th", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'd': device_path = optarg;  break;
 		case 'k': pubkey_path = optarg;  break;
-		case 'x': pubkey_digest_hex = optarg; break;
 		case 't': dm_table_only = true;  break;
 		case 'h':
 		default:
@@ -352,16 +344,6 @@ int main(int argc, char *argv[])
 	if (!device_path || !pubkey_path) {
 		usage(argv[0]);
 		return 1;
-	}
-
-	check_digest = (pubkey_digest_hex != NULL);
-	if (check_digest) {
-		if (parse_hex(pubkey_digest_hex, expected_digest,
-			      AVB_SHA256_DIGEST_SIZE) != AVB_SHA256_DIGEST_SIZE) {
-			fprintf(stderr, "Error: --pubkey-digest must be a "
-				"64-character hex SHA-256 digest.\n");
-			return 1;
-		}
 	}
 
 	/* Load trusted public key */
@@ -473,18 +455,6 @@ int main(int argc, char *argv[])
 	if (embedded_key_size != trusted_key_size ||
 	    memcmp(embedded_key, trusted_key, trusted_key_size) != 0)
 		FAIL("FAILED: public key mismatch.\n");
-
-	/* Check public key digest against OTP value if requested */
-	if (check_digest) {
-		AvbSHA256Ctx ctx;
-		uint8_t *digest;
-
-		avb_sha256_init(&ctx);
-		avb_sha256_update(&ctx, embedded_key, embedded_key_size);
-		digest = avb_sha256_final(&ctx);
-		if (memcmp(digest, expected_digest, AVB_SHA256_DIGEST_SIZE) != 0)
-			FAIL("FAILED: public key digest mismatch.\n");
-	}
 
 	/* Parse vbmeta header */
 	memcpy(&raw_hdr, vbmeta, sizeof(raw_hdr));

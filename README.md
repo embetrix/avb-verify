@@ -16,8 +16,7 @@ integrity enforcement via: `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`.
 It implements two layers of verification:
 
 1. `AVB layer`  validates the vbmeta AVB raw signature (RSA/ML-DSA) and
-   checks the embedded public key against a trusted reference key (or its
-   SHA-256 digest, e.g. burned into OTP fuses).
+   checks the embedded public key against a trusted reference key.
 2. `Root hash layer` *(optional)* if the vbmeta image contains a
    `roothash_sig` property (a PKCS#7 signature of the root hash), loads it
    into the user session keyring so dm-verity can independently verify the
@@ -91,14 +90,13 @@ Deploy `pubkey.bin` to the target (e.g. stored in the initramfs).
 ## Verification (target)
 
 ```
-avb_verify -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-h]
+avb_verify -d <device> -k <pubkey.bin> [-t] [-h]
 ```
 
 | Option | Description |
 |---|---|
 | `-d, --device <path>` | Image file or block device (required) |
 | `-k, --pubkey <path>` | AVB public key in serialized format (required) |
-| `-x, --pubkey-digest <hex>` | Also verify that the key's SHA-256 matches this digest |
 | `-t, --dm-table` | Print only the raw dm-verity table line |
 | `-h, --help` | Show help |
 
@@ -142,19 +140,6 @@ With `-t`, outputs only the raw dm-verity table line for direct use with
 
 ```bash
 avb_verify -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system
-```
-
-### Key digest verification
-
-Use `-x` to additionally verify that the embedded public key matches a known
-SHA-256 digest, typically a value burned into OTP fuses at manufacturing time
-or retrieved from secure storage. This guards against TOCTOU attacks where a
-compromised `pubkey.bin` is substituted between verification and use but unlike
-the key file the OTP digest is immutable and cannot be altered at runtime:
-
-```bash
-avb_verify -d /dev/mmcblk0p2 -k pubkey.bin \
-           -x $(sha256sum pubkey.bin | cut -d' ' -f1)
 ```
 
 ### Root hash signature
@@ -201,7 +186,7 @@ The full on-disk hashtree layout: leaf hashes covering data blocks, intermediate
    to work correctly when written to a larger block device.
 2. `Verify vbmeta signature`  calls `avb_vbmeta_image_verify()` from libavb.
 3. `Check public key`  compares the key embedded in vbmeta against the
-   trusted `pubkey.bin`, and optionally its SHA-256 digest.
+   trusted `pubkey.bin`.
 4. `Extract dm-verity parameters`  parses the hashtree descriptor and
    builds the dm-verity table string.
 5. `Load root hash signature` *(if present)*  reads the `roothash_sig`
@@ -278,8 +263,7 @@ ctest --test-dir build -V
 
 The test suite creates temporary ext4, erofs, and squashfs images, signs them,
 and exercises all code paths: signature verification, key mismatch, corruption
-detection, footer scanning on padded images, digest checking and root hash
-signature loading.
+detection, footer scanning on padded images, and root hash signature loading.
 
 ## License
 
