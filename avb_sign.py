@@ -107,6 +107,15 @@ def main():
     print(f"Algorithm: {args.algorithm}")
     print()
 
+    # Pad image to a 4KB boundary so avbtool accepts it
+    size = os.path.getsize(work_image)
+    remainder = size % 4096
+    if remainder:
+        padding = 4096 - remainder
+        with open(work_image, "ab") as f:
+            f.write(b"\x00" * padding)
+        print(f"Padded image by {padding} bytes to {size + padding} (4K aligned)")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         roothash_file = os.path.join(tmpdir, "roothash.hex")
         p7s_file      = os.path.join(tmpdir, "roothash.p7s")
