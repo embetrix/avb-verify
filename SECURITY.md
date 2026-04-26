@@ -51,10 +51,6 @@ PGP encryption is welcome; key available on request.
 
 - **Persistent attacker with flash write access**: can modify rootfs data in
   flash and must be stopped by dm-verity + root hash signature verification.
-- **Runtime memory attacker**: can overwrite files in the initramfs (e.g.
-  `pubkey.bin`) after the bootloader hands off to Linux but before `avb_verify`
-  runs. The `roothash_sig` feature and the `-x` key digest option are the
-  primary mitigations.
 
 The following are **out of scope** (assumed trusted):
 

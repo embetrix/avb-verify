@@ -159,25 +159,12 @@ avb_verify -d /dev/mmcblk0p2 -k pubkey.bin \
 
 ### Root hash signature
 
-AVB's vbmeta signature is verified in userspace by `avb_verify` within the
-initramfs (which is itself verified by the bootloader at an earlier boot stage).
-However, once Linux is running, the following combined attack is possible:
-
-> `Attack scenario`
-> 1. Attacker prepares a modified rootfs data in flash.
-> 2. Attacker overwrites `pubkey.bin` in memory with their own key.
-> 3. `avb_verify` reads the attacker's key, accepts a crafted vbmeta signed
->    with it, and passes the attacker-controlled root hash to `dmsetup`.
-> 4. dm-verity validates the tampered rootfs against the attacker's root hash and
->    secure boot is bypassed.
-
-The `roothash_sig` feature closes this window by delegating root hash
-verification to the kernel: a PKCS#7 signature of the root hash is embedded
-as a vbmeta property and loaded into the session keyring so dm-verity verifies
-it atomically at device creation time, against the system's trusted keyring
-(`CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`). Even if an attacker substitutes
-`pubkey.bin` in memory, the kernel independently rejects any root hash that
-does not match the kernel-anchored trusted keyring.
+Root hash signature verification is an additional protection layer on top of
+the AVB vbmeta signature. A PKCS#7 signature of the root hash is embedded as a
+vbmeta property and verified atomically by the kernel at dm-verity device
+creation time, against the system's trusted keyring
+(`CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`), independently of the userspace
+`avb_verify` step.
 
 ## Architecture
 
