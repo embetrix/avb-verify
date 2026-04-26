@@ -49,11 +49,23 @@ Supported algorithms: `SHA256_RSA2048`, `SHA256_RSA4096`, `SHA256_RSA8192`,
 # Generate signing key
 openssl genrsa -out key.pem 4096
 
-# Self-signed certificate from the same key (used for PKCS#7 roothash_sig)
+# Self-signed certificate (required only when embedding a PKCS#7 roothash_sig)
 openssl req -x509 -key key.pem -out sig_cert.pem -days 3650 -subj "/CN=avb-signer"
 ```
 
 ### 2. Append hash tree, sign and attach vbmeta
+
+Without `--cert`, a single-pass sign is performed (no PKCS#7 root hash signature):
+
+```bash
+python3 avb_sign.py \
+  --image rootfs.ext4 \
+  --key key.pem \
+  --partition-name rootfs \
+  --algorithm SHA256_RSA4096
+```
+
+With `--cert`, the root hash is also signed with a PKCS#7 signature and embedded in vbmeta:
 
 ```bash
 python3 avb_sign.py \

@@ -148,9 +148,30 @@ $SIGN --key "$TEST_DIR/key.pem" --cert "$TEST_DIR/sig_cert.pem" >/dev/null 2>&1 
 $SIGN --image "$TEST_DIR/rootfs.ext4" --cert "$TEST_DIR/sig_cert.pem" >/dev/null 2>&1 \
     && nok "missing --key fails" || ok "missing --key fails"
 
-# 13. missing --cert fails
-$SIGN --image "$TEST_DIR/rootfs.ext4" --key "$TEST_DIR/key.pem" >/dev/null 2>&1 \
-    && nok "missing --cert fails" || ok "missing --cert fails"
+# 13. signing without --cert succeeds (no PKCS#7 roothash signature)
+cp "$TEST_DIR/rootfs.ext4" "$TEST_DIR/nosig.ext4"
+if $SIGN --image "$TEST_DIR/nosig.ext4" \
+         --key "$TEST_DIR/key.pem" \
+         --partition-name rootfs >/dev/null 2>&1; then
+    ok "signing without --cert succeeds"
+else
+    nok "signing without --cert succeeds"
+fi
+
+# 13a. image signed without --cert is accepted by avb_verify
+if "$VERIFY" -d "$TEST_DIR/nosig.ext4" -k "$TEST_DIR/pubkey.bin" \
+        2>/dev/null | grep -q "Verification:  OK"; then
+    ok "avb_verify accepts image signed without --cert"
+else
+    nok "avb_verify accepts image signed without --cert"
+fi
+
+# 13b. image signed without --cert has no roothash_sig property
+if $AVBTOOL info_image --image "$TEST_DIR/nosig.ext4" 2>/dev/null | grep -q "roothash_sig"; then
+    nok "image signed without --cert has no roothash_sig"
+else
+    ok "image signed without --cert has no roothash_sig"
+fi
 
 # 14. nonexistent image fails
 $SIGN --image "$TEST_DIR/no_such.ext4" \
