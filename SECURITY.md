@@ -36,15 +36,6 @@ Include in your report:
 
 PGP encryption is welcome; key available on request.
 
-## Response Timeline
-
-| Milestone | Target |
-|---|---|
-| Acknowledgement | 3 business days |
-| Initial assessment | 7 business days |
-| Fix or mitigation | 30 days (critical), 90 days (others) |
-| Public disclosure | Coordinated with reporter |
-
 ## Threat Model
 
 `avb_verify` is designed to defend against the following adversary:
