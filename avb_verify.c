@@ -38,6 +38,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <linux/keyctl.h>
+#include <linux/magic.h>
 
 #include <libavb/libavb.h>
 
@@ -87,7 +88,7 @@ static uint64_t read_le64(const uint8_t *p)
 }
 
 /*
- * Detect filesystem size from superblock (ext4, erofs or squashfs).
+ * Detect filesystem size from superblock (ext2/ext3/ext4, erofs or squashfs).
  * Returns the filesystem size in bytes, or 0 if unknown.
  */
 static uint64_t detect_fs_size(FILE *fp)
@@ -98,8 +99,8 @@ static uint64_t detect_fs_size(FILE *fp)
 	if (fread(sb, 1, sizeof(sb), fp) < 2048)
 		return 0;
 
-	/* ext4: superblock at offset 1024, magic 0xEF53 at sb+56 */
-	if (read_le16(sb + 1024 + 56) == 0xEF53) {
+	/* ext2/ext3/ext4: superblock at offset 1024, magic at sb+56 */
+	if (read_le16(sb + 1024 + 56) == EXT4_SUPER_MAGIC) {
 		uint32_t s_blocks_count_lo = read_le32(sb + 1024 + 4);
 		uint32_t s_log_block_size  = read_le32(sb + 1024 + 24);
 		uint64_t block_size        = 1024ULL << s_log_block_size;
@@ -107,16 +108,16 @@ static uint64_t detect_fs_size(FILE *fp)
 		return (uint64_t)s_blocks_count_lo * block_size;
 	}
 
-	/* erofs: superblock at offset 1024, magic 0xE0F5E1E2 */
-	if (read_le32(sb + 1024) == 0xE0F5E1E2) {
+	/* erofs: superblock at offset 1024 */
+	if (read_le32(sb + 1024) == EROFS_SUPER_MAGIC_V1) {
 		uint8_t  blkszbits = sb[1024 + 12];
 		uint32_t blocks    = read_le32(sb + 1024 + 36);
 
 		return (uint64_t)blocks << blkszbits;
 	}
 
-	/* squashfs: magic 0x73717368 at offset 0, bytes_used at offset 40 */
-	if (read_le32(sb) == 0x73717368)
+	/* squashfs: magic at offset 0, bytes_used at offset 40 */
+	if (read_le32(sb) == SQUASHFS_MAGIC)
 		return read_le64(sb + 40);
 
 	return 0;
