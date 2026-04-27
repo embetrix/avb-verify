@@ -1,7 +1,7 @@
 # avb-utils
 
 [![CI](https://github.com/embetrix/avb-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/embetrix/avb-utils/actions/workflows/ci.yml)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
 
 A toolkit that brings [Android Verified Boot](https://android.googlesource.com/platform/external/avb/)
 (AVB) to embedded Linux systems, extending the chain of trust:
@@ -279,11 +279,7 @@ detection, footer scanning on padded images, and root hash signature loading.
 
 ## License
 
-This project is licensed under the [GNU General Public License v3.0](LICENSE).
-
-Alternative licensing (commercial, proprietary) are
-available contact [info@embetrix.com](mailto:info@embetrix.com)
-for your enquiries.
+This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 ### Third-party licenses
 
