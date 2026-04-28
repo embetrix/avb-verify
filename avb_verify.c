@@ -129,26 +129,6 @@ static void print_hex(const uint8_t *data, size_t len)
 		printf("%02x", data[i]);
 }
 
-/*
- * Parse a hex string into a byte buffer.
- * Returns the number of bytes written, or -1 on error.
- */
-static int parse_hex(const char *hex, uint8_t *out, size_t out_max)
-{
-	size_t len = strlen(hex);
-
-	if (len % 2 != 0 || len / 2 > out_max)
-		return -1;
-	for (size_t i = 0; i < len; i += 2) {
-		unsigned int byte;
-
-		if (sscanf(hex + i, "%2x", &byte) != 1)
-			return -1;
-		out[i / 2] = (uint8_t)byte;
-	}
-	return (int)(len / 2);
-}
-
 static uint8_t *read_file_all(const char *path, size_t *out_size)
 {
 	uint8_t *buf;
