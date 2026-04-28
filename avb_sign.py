@@ -171,7 +171,7 @@ def main():
                 f.write(root_hash)
 
             run([
-                "openssl", "smime", "-sign",
+                "openssl", "cms", "-sign",
                 "-nocerts", "-noattr", "-binary",
                 "-in",      roothash_file,
                 "-inkey",   args.key,

@@ -82,7 +82,7 @@ openssl req -x509 -key "$TEST_DIR/wrong_key.pem" \
     -subj "/CN=wrong-signer" 2>/dev/null
 
 # Create PKCS#7 detached signature of the root hash hex string
-openssl smime -sign -nocerts -noattr -binary \
+openssl cms -sign -nocerts -noattr -binary \
     -in "$TEST_DIR/roothash.hex" -inkey "$TEST_DIR/sig_key.pem" \
     -signer "$TEST_DIR/sig_cert.pem" \
     -outform der -out "$TEST_DIR/roothash.p7s"
@@ -281,7 +281,7 @@ else
 fi
 
 # 22. PKCS#7 roothash sig: verify against root hash hex
-if openssl smime -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
+if openssl cms -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
     -content "$TEST_DIR/roothash.hex" \
     -nointern -certfile "$TEST_DIR/sig_cert.pem" \
     -CAfile "$TEST_DIR/sig_cert.pem" \
@@ -294,7 +294,7 @@ fi
 # 23. PKCS#7 roothash sig: verification fails with wrong root hash
 echo -n "0000000000000000000000000000000000000000000000000000000000000000" \
     > "$TEST_DIR/wrong_roothash.hex"
-if openssl smime -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
+if openssl cms -verify -inform DER -in "$TEST_DIR/roothash.p7s" \
     -content "$TEST_DIR/wrong_roothash.hex" \
     -nointern -certfile "$TEST_DIR/sig_cert.pem" \
     -CAfile "$TEST_DIR/sig_cert.pem" \
@@ -305,11 +305,11 @@ else
 fi
 
 # 24. PKCS#7 roothash sig: verification fails with wrong signing key
-openssl smime -sign -nocerts -noattr -binary \
+openssl cms -sign -nocerts -noattr -binary \
     -in "$TEST_DIR/roothash.hex" -inkey "$TEST_DIR/wrong_key.pem" \
     -signer "$TEST_DIR/wrong_sig_cert.pem" \
     -outform der -out "$TEST_DIR/wrong_sig.p7s" 2>/dev/null
-if openssl smime -verify -inform DER -in "$TEST_DIR/wrong_sig.p7s" \
+if openssl cms -verify -inform DER -in "$TEST_DIR/wrong_sig.p7s" \
     -content "$TEST_DIR/roothash.hex" \
     -nointern -certfile "$TEST_DIR/sig_cert.pem" \
     -CAfile "$TEST_DIR/sig_cert.pem" \
