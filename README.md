@@ -267,6 +267,11 @@ AVB footer fields:
 | Reserved | 28 bytes | Padding |
 
 
+## Yocto Integration
+
+avb-utils is available as a Yocto layer via [meta-avb](https://github.com/embetrix/meta-avb).
+
+
 ## Tests
 
 ```bash
