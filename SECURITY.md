@@ -2,9 +2,8 @@
 
 ## Scope
 
-This policy covers security vulnerabilities in `avb_verify` and its yocto layer [meta-avb](https://github.com/embetrix/meta-avb).
-. Issues in the upstream
-[libavb](https://android.googlesource.com/platform/external/avb/) submodule
+This policy covers security vulnerabilities in `avb_verify` and its yocto layer [meta-avb](https://github.com/embetrix/meta-avb). 
+Issues in the upstream [libavb](https://android.googlesource.com/platform/external/avb/) submodule
 should be reported to the Android Open Source Project directly.
 
 `avb_verify` is security-critical software: it runs in the initramfs as part
