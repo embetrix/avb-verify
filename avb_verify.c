@@ -207,6 +207,7 @@ static bool find_hashtree(const AvbDescriptor *desc, void *user_data)
  */
 static int load_roothash_sig(const uint8_t *vbmeta, size_t vbmeta_size,
 			     const HashtreeInfo *ht, bool verbose,
+			     bool no_keyring,
 			     char *key_desc, size_t key_desc_size)
 {
 	const char *sig_data;
@@ -221,6 +222,10 @@ static int load_roothash_sig(const uint8_t *vbmeta, size_t vbmeta_size,
 	snprintf(key_desc, key_desc_size, "%s%.*s",
 		 ROOTHASH_SIG_KEY_PREFIX,
 		 (int)ht->ht.partition_name_len, ht->partition_name);
+
+	if (no_keyring)
+		return 1;
+
 	key_id = syscall(__NR_add_key, "user", key_desc,
 			 sig_data, sig_size, KEY_SPEC_USER_SESSION_KEYRING);
 	if (key_id < 0)
@@ -257,12 +262,14 @@ static void print_verity_table(const char *prefix, const char *device_path,
 static void usage(const char *prog)
 {
 	fprintf(stderr,
-		"Usage: %s -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-h]\n\n"
+		"Usage: %s -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-n] [-h]\n\n"
 		"Verify AVB signature and print dm-verity parameters.\n\n"
 		"Options:\n"
 		"  -d, --device <path>             Image file or block device (required)\n"
 		"  -k, --pubkey <path>             AVB public key file (required)\n"
 		"  -t, --dm-table                  Print only the raw dm table line\n"
+		"  -n, --no-keyring                Skip loading roothash_sig into the kernel\n"
+		"                                  keyring\n"
 		"  -h, --help                      Show this help\n\n"
 		"If a 'roothash_sig' property (PKCS#7) is found in the vbmeta image,\n"
 		"it is loaded into the session keyring and 'root_hash_sig_key_desc'\n"
@@ -270,7 +277,7 @@ static void usage(const char *prog)
 		"Examples:\n"
 		"  %s -d /dev/mmcblk0p2 -k pubkey.bin\n"
 		"  %s -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system\n",
-		prog, prog, prog);
+		prog, prog, prog, prog);
 }
 
 int main(int argc, char *argv[])
@@ -279,10 +286,12 @@ int main(int argc, char *argv[])
 		{ "pubkey",        required_argument, NULL, 'k' },
 		{ "device",        required_argument, NULL, 'd' },
 		{ "dm-table",      no_argument,       NULL, 't' },
+		{ "no-keyring",    no_argument,       NULL, 'n' },
 		{ "help",          no_argument,       NULL, 'h' },
 		{ NULL, 0, NULL, 0 }
 	};
 	bool dm_table_only = false;
+	bool no_keyring = false;
 	const char *device_path = NULL;
 	const char *pubkey_path = NULL;
 	int ret = 0;
@@ -310,11 +319,12 @@ int main(int argc, char *argv[])
 
 	memset(sig_key_desc, 0, sizeof(sig_key_desc));
 
-	while ((opt = getopt_long(argc, argv, "d:k:th", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "d:k:tnh", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'd': device_path = optarg;  break;
 		case 'k': pubkey_path = optarg;  break;
 		case 't': dm_table_only = true;  break;
+		case 'n': no_keyring = true;     break;
 		case 'h':
 		default:
 			usage(argv[0]);
@@ -448,7 +458,7 @@ int main(int argc, char *argv[])
 		FAIL("No hashtree descriptor found.\n");
 
 	sig_rc = load_roothash_sig(vbmeta, (size_t)footer.vbmeta_size,
-				   &ht, !dm_table_only,
+				   &ht, !dm_table_only, no_keyring,
 				   sig_key_desc, sizeof(sig_key_desc));
 	if (sig_rc < 0)
 		FAIL("Error: add_key to session keyring: %s\n", strerror(errno));
