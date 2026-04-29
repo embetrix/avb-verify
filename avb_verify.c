@@ -262,7 +262,7 @@ static void print_verity_table(const char *prefix, const char *device_path,
 static void usage(const char *prog)
 {
 	fprintf(stderr,
-		"Usage: %s -d <device> -k <pubkey.bin> [-x <sha256>] [-t] [-n] [-h]\n\n"
+		"Usage: %s -d <device> -k <pubkey.bin> [-t] [-n] [-h]\n\n"
 		"Verify AVB signature and print dm-verity parameters.\n\n"
 		"Options:\n"
 		"  -d, --device <path>             Image file or block device (required)\n"
@@ -277,7 +277,7 @@ static void usage(const char *prog)
 		"Examples:\n"
 		"  %s -d /dev/mmcblk0p2 -k pubkey.bin\n"
 		"  %s -t -d /dev/mmcblk0p2 -k pubkey.bin | dmsetup create verity-system\n",
-		prog, prog, prog, prog);
+		prog, prog, prog);
 }
 
 int main(int argc, char *argv[])
